@@ -104,6 +104,21 @@ const userSchema = mongoose.Schema({
   latitude: {
     type: String,
   },
+   establishment: {
+    type: Number,
+  },
+  call: {
+    type: Number,
+  },
+   whatsapp: {
+    type: Number,
+  },
+   gallery: {
+            type: Array,
+  },
+   images: {
+            type: Array,
+        },
 },
   { timestamps: true }
 );

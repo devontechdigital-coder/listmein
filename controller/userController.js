@@ -5194,7 +5194,11 @@ export const AuthUserByID = async (req, res) => {
           pHealthHistory: existingUser.pHealthHistory,
           cHealthStatus: existingUser.cHealthStatus,
           coverage: existingUser.coverage,
-
+          gallery: existingUser.gallery,
+          images: existingUser.images,
+          call: existingUser.call,
+          whatsapp: existingUser.whatsapp,
+establishment: existingUser.establishment,
         },
       });
 
@@ -5773,7 +5777,7 @@ export const ViewAllZonesCategory = async (req, res) => {
 export const getVendorById = async (req, res) => {
   try {
     const { slug } = req.params;
-    const Mpage = await userModel.findOne({ _id: slug, type: 1 });
+    const Mpage = await userModel.findOne({ _id: slug, type: 3 });
     if (!Mpage) {
       return res.status(200).send({
         message: "user not found",
@@ -7013,7 +7017,7 @@ export const updateVendorProfileUser = async (req, res) => {
       city,
       confirm_password,
       about,
-      department, coverage
+      department, coverage, gallery,images,whatsapp,call,establishment
     } = req.body;
     console.log("Uploaded files:", req.files);
 
@@ -7036,7 +7040,8 @@ export const updateVendorProfileUser = async (req, res) => {
       city,
       about,
       department,
-      coverage
+      coverage,
+      gallery,images,whatsapp,call,establishment
     };
 
     if(olduser.email !== email){
@@ -7256,6 +7261,83 @@ export const getCategoriesWithSubcategory = async (req, res) => {
     });
   }
 };
+
+
+
+export const getCategoriesWithProductsByID = async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId is required",
+      });
+    }
+
+    // Fetch products of the given user and group by categories
+    const data = await productModel.aggregate([
+      {
+        $match: { userId: new mongoose.Types.ObjectId(userId) }, // filter products by userId
+      },
+      {
+        $unwind: "$Category", // break multiple categories into separate docs
+      },
+      {
+        $lookup: {
+          from: "categories", // category collection name in MongoDB
+          localField: "Category",
+          foreignField: "_id",
+          as: "categoryData",
+        },
+      },
+      {
+        $unwind: "$categoryData",
+      },
+      {
+        $group: {
+          _id: "$Category",
+          category: { $first: "$categoryData" },
+          products: { $push: "$$ROOT" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          category: {
+            _id: "$category._id",
+            title: "$category.title",
+            slug: "$category.slug",
+            description: "$category.description",
+            image: "$category.image",
+          },
+          products: {
+            _id: 1,
+            title: 1,
+            description: 1,
+            pImage: 1,
+            salePrice: 1,
+            regularPrice: 1,
+            stock: 1,
+            slug: 1,
+          },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching categories and products:", error);
+    return res.status(500).json({
+      success: false,
+      message: `Server error: ${error.message}`,
+    });
+  }
+};
+
 
 export const SenderEnquireStatus = async (req, res) => {
   try {
