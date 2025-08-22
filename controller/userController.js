@@ -1667,9 +1667,9 @@ console.log('OTP',OTP)
   });
 };
 
-export const HomeSendEnquire_old = async (req, res) => {
+export const HomeSendEnquire = async (req, res) => {
   const { fullname, email, phone, service, QTY, userId,
-    userEmail, } = req.body;
+    senderId,type } = req.body;
 
   try {
     // Save data to the database
@@ -1678,9 +1678,10 @@ export const HomeSendEnquire_old = async (req, res) => {
       email,
       phone,
       service,
-      QTY,
+      QTY:QTY ?? 1,
       userId,
-      userEmail,
+      senderId,
+      type
     });
 
     await newEnquire.save();
@@ -1689,40 +1690,44 @@ export const HomeSendEnquire_old = async (req, res) => {
 
       
 
-    // Configure nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      // SMTP configuration
-      host: process.env.MAIL_HOST, // Update with your SMTP host
-      port: process.env.MAIL_PORT, // Update with your SMTP port
-      secure: process.env.MAIL_ENCRYPTION, // Set to true if using SSL/TLS
-      auth: {
-        user: process.env.MAIL_USERNAME, // Update with your email address
-        pass: process.env.MAIL_PASSWORD, // Update with your email password
-      },
-    });
+    // // Configure nodemailer transporter
+    // const transporter = nodemailer.createTransport({
+    //   // SMTP configuration
+    //   host: process.env.MAIL_HOST, // Update with your SMTP host
+    //   port: process.env.MAIL_PORT, // Update with your SMTP port
+    //   secure: process.env.MAIL_ENCRYPTION, // Set to true if using SSL/TLS
+    //   auth: {
+    //     user: process.env.MAIL_USERNAME, // Update with your email address
+    //     pass: process.env.MAIL_PASSWORD, // Update with your email password
+    //   },
+    // });
 
-    const recipients = userEmail
-      ? `${userEmail}, ${process.env.MAIL_TO_ADDRESS}`
-      : process.env.MAIL_TO_ADDRESS;
+    // const recipients = userEmail
+    //   ? `${userEmail}, ${process.env.MAIL_TO_ADDRESS}`
+    //   : process.env.MAIL_TO_ADDRESS;
 
-    // Email message
-    const mailOptions = {
-      from: process.env.MAIL_FROM_ADDRESS, // Update with your email address
-      to: recipients, // Update with your email address
-      subject: "New Enquire Form Submission",
-      text: `Name: ${fullname}\nEmail: ${email}\nPhone: ${phone}\nService: ${service}\nQTY:${QTY}`,
-    };
+    // // Email message
+    // const mailOptions = {
+    //   from: process.env.MAIL_FROM_ADDRESS, // Update with your email address
+    //   to: recipients, // Update with your email address
+    //   subject: "New Enquire Form Submission",
+    //   text: `Name: ${fullname}\nEmail: ${email}\nPhone: ${phone}\nService: ${service}\nQTY:${QTY}`,
+    // };
 
     // Send email
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error(error);
-        res.status(500).send("Failed to send email");
-      } else {
-        console.log("Email sent: " + info.response);
-        res.status(200).send("Email sent successfully");
-      }
-    });
+    // transporter.sendMail(mailOptions, (error, info) => {
+    //   if (error) {
+    //     console.error(error);
+    //     res.status(500).send("Failed to send email");
+    //   } else {
+    //     console.log("Email sent: " + info.response);
+    //     res.status(200).send("Email sent successfully");
+    //   }
+    // });
+
+            res.status(200).send("Email sent successfully");
+
+            
   } catch (error) {
     console.error("Error in send data:", error);
     return res.status(500).json({
@@ -1875,7 +1880,7 @@ export const HomeSendEnquire_old = async (req, res) => {
 //   }
 // };
 
-export const HomeSendEnquire = async (req, res) => {
+export const HomeSendEnquire_new = async (req, res) => {
   
   // Calculate the auto-increment ID
   const lastOrder = await orderModel.findOne().sort({ _id: -1 }).limit(1);
@@ -2773,6 +2778,44 @@ export const AddRating = async (req, res) => {
   }
 };
 
+export const AddVendorRating = async (req, res) => {
+  try {
+    const { userId, rating, comment, vendorId } = req.body;
+
+    // Validation
+    if (!userId || !rating || !comment || !vendorId) {
+      return res.status(400).json({
+        success: false,
+        message: "Please fill all fields",
+      });
+    } else {
+      // Create a new user rating instance
+      const newUserRating = new ratingModel({
+        userId,
+        rating,
+        comment,
+        vendorId,
+      });
+
+      // Save the user rating to the database
+      await newUserRating.save();
+
+      return res.status(200).json({
+        message: "User rating created successfully!",
+        success: true,
+        newUserRating,
+      });
+    }
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while add rating: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
 export const ViewProductRating = async (req, res) => {
   try {
     const productId = req.params.id;
@@ -2801,6 +2844,40 @@ export const ViewProductRating = async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting product ratings:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
+
+export const ViewVendorRating = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+
+    // Find all ratings for a specific product
+    const productRatings = await ratingModel.find({ vendorId, status: 1 });
+
+    // Fetch user details for each rating
+    const ratingsWithUserDetails = await Promise.all(
+      productRatings.map(async (rating) => {
+        const user = await userModel.findById(rating.userId);
+        return {
+          rating: rating.rating,
+          comment: rating.comment,
+          username: user ? user.username : "Unknown",
+          createdAt: rating.createdAt,
+          userId: user ? user._id : "Unknown",
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Getting vendorId ratings successfully!",
+      productRatings: ratingsWithUserDetails.reverse() ?? [],
+    });
+  } catch (error) {
+    console.error("Error getting vendorId ratings:", error);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
@@ -3454,6 +3531,7 @@ export const SignupLoginUser_old = async (req, res) => {
         otp: ecryptOTP,
       });
     }
+
   } catch (error) {
     console.error("Error on login:", error);
     return res.status(500).json({
@@ -3533,18 +3611,20 @@ export const SignupLoginUser = async (req, res) => {
 
       // block
       console.log(otp);
-      // await sendLogOTP(phone, otp);
-      // return res.status(200).json({
-      //   success: true,
-      //   message: "New User found",
-      //   newUser: true,
-      //   otp: ecryptOTP,
-      // });
-      return res.status(400).json({
-        success: false,
-        message: "User Not Found",
+      await sendLogOTP(phone, otp);
+      return res.status(200).json({
+        success: true,
+        message: "New User found",
+        newUser: true,
+        otp: ecryptOTP,
+      });
+
+
+      // return res.status(400).json({
+      //   success: false,
+      //   message: "User Not Found",
         
-       });
+      //  });
 
     }
   } catch (error) {
@@ -7083,6 +7163,88 @@ export const updateVendorProfileUser = async (req, res) => {
   }
 };
 
+
+export const CreateVendorProfileUser = async (req, res) => {
+  try {
+     const {
+      username,
+      address,
+      email,
+      phone,
+      pincode,
+      password,
+      gender,
+      state,
+      statename,
+      city,
+      confirm_password,
+      about,
+      department, coverage, gallery,images,whatsapp,call,establishment
+    } = req.body;
+    console.log("Uploaded files:", req.files);
+
+
+    const Doc1 = req.files ? req.files.Doc1 : undefined;
+    const Doc2 = req.files ? req.files.Doc2 : undefined;
+    const Doc3 = req.files ? req.files.Doc3 : undefined;
+    const profileImg = req.files ? req.files.profile : undefined;
+
+    console.log("req.body", req.body, profileImg);
+
+    let updateFields = {
+      username,
+      email,
+      phone,
+      address,
+      pincode,
+      gender,
+      state,
+      statename,
+      city,
+      about,
+      department,
+      coverage,
+      gallery,images,whatsapp,call,establishment,type:3
+    };
+
+  
+    
+    if (password.length > 0 && confirm_password.length > 0) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateFields.password = hashedPassword;
+    }
+    // If the files exist, update the corresponding fields
+    if (Doc1 && Doc1[0]) {
+      updateFields.Doc1 = Doc1[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
+    if (Doc2 && Doc2[0]) {
+      updateFields.Doc2 = Doc2[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
+    if (Doc3 && Doc3[0]) {
+      updateFields.Doc3 = Doc3[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
+    if (profileImg && profileImg[0]) {
+      updateFields.profile = profileImg[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
+
+const newUser = new userModel(updateFields);
+await newUser.save();
+
+
+    return res.status(200).json({
+      message: "user created!",
+      success: true,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while updating Promo code: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
 export const getCategoriesWithProducts = async (req, res) => {
   try {
     // Get query parameters for filtering
@@ -7335,6 +7497,184 @@ export const getCategoriesWithProductsByID = async (req, res) => {
       success: false,
       message: `Server error: ${error.message}`,
     });
+  }
+};
+
+const STOPWORDS = new Set([
+  "a","an","and","the","of","in","on","at","to","for","from","by","with",
+  "is","are","was","were","be","been","being","as","it","that","this","those",
+  "these","or","not","near","me","my","our","your","their","his","her","its",
+  "into","over","under","within","around","about","up","down","out","off","per" ,"in"
+]);
+
+const escapeReg = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const tokenize = (raw) => {
+  // lower, split on non-letters/digits, remove stopwords/short tokens
+  const toks = String(raw || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .map((t) => t.trim())
+    .filter((t) => t && t.length > 1 && !STOPWORDS.has(t));
+  // de-duplicate while preserving order
+  return [...new Set(toks)];
+};
+
+export const getProductDeepSearch = async (req, res) => {
+  try {
+    const { keywords } = req.query;
+    if (!keywords) {
+      return res.status(400).json({ success: false, message: "keywords is required" });
+    }
+
+    const page  = Math.max(parseInt(req.query.page  || "1", 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 100);
+    const skip  = (page - 1) * limit;
+
+    // ---- Tokenize + remove stopwords ----
+    const tokens = tokenize(keywords);
+    if (!tokens.length) {
+      return res.status(400).json({ success: false, message: "No meaningful keywords after filtering." });
+    }
+
+    // ---- FULL WORD regexes: \bword\b (case-insensitive) ----
+    const regexesBounded = tokens.map(
+      (t) => new RegExp(`\\b${escapeReg(t)}\\b`, "i")
+    );
+
+    // For $regexMatch pattern alternatives with word boundaries
+    const boundedAlt = tokens.map((t) => `\\b${escapeReg(t)}\\b`).join("|");
+    const pattern = `(${boundedAlt})`;
+    const options = "i";
+
+    const pipeline = [
+      { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+
+      {
+        $addFields: {
+          _statename:   { $ifNull: ["$user.statename", ""] },
+          _coverageArr: {
+            $cond: [
+              { $and: [ { $ne: ["$user.coverage", null] }, { $isArray: "$user.coverage" } ] },
+              "$user.coverage",
+              []
+            ]
+          },
+          _featuresStr: {
+            $cond: [
+              { $isArray: "$features" },
+              {
+                $reduce: {
+                  input: "$features",
+                  initialValue: "",
+                  in: { $concat: ["$$value", " ", { $toString: "$$this" }] }
+                }
+              },
+              ""
+            ]
+          }
+        }
+      },
+
+      // -------- HARD REQUIREMENT: title must match at least one WHOLE WORD --------
+      {
+        $match: {
+          $or: regexesBounded.map((r) => ({ title: { $regex: r } }))
+        }
+      },
+
+      // -------- scoring booleans (also word-boundary based) --------
+      {
+        $addFields: {
+          coverageMatch: {
+            $anyElementTrue: {
+              $map: {
+                input: "$_coverageArr",
+                as: "c",
+                in: { $regexMatch: { input: { $toString: "$$c" }, regex: pattern, options } }
+              }
+            }
+          },
+          stateMatch: { $regexMatch: { input: "$_statename", regex: pattern, options } },
+          titleMatch: { $regexMatch: { input: "$title",      regex: pattern, options } },
+          otherMatch: {
+            $or: [
+              { $regexMatch: { input: "$description",      regex: pattern, options } },
+              { $regexMatch: { input: "$metaTitle",        regex: pattern, options } },
+              { $regexMatch: { input: "$metaDescription",  regex: pattern, options } },
+              { $regexMatch: { input: "$metaKeywords",     regex: pattern, options } },
+              { $regexMatch: { input: "$_featuresStr",     regex: pattern, options } }
+            ]
+          }
+        }
+      },
+
+      // weighted score
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $cond: [{ $eq: ["$coverageMatch", true] }, 3, 0] },
+              { $cond: [{ $eq: ["$stateMatch",    true] }, 2, 0] },
+              { $cond: [{ $eq: ["$titleMatch",    true] }, 1.5, 0] },
+              { $cond: [{ $eq: ["$otherMatch",    true] }, 1, 0] }
+            ]
+          }
+        }
+      },
+
+      // default sort (relevance + recency)
+      { $sort: { score: -1, updatedAt: -1, createdAt: -1 } },
+
+      // paginate
+      {
+        $facet: {
+          results: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 1,
+                title: 1,
+                description: 1,
+                pImage: 1,
+                images: 1,
+                slug: 1,
+                salePrice: 1,
+                regularPrice: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                user: { username: 1, statename: 1, coverage: 1 },
+                score: 1,
+                coverageMatch: 1,
+                stateMatch: 1,
+                titleMatch: 1,
+                otherMatch: 1,
+                metaDescription: 1,
+              }
+            }
+          ],
+          totalCount: [{ $count: "count" }]
+        }
+      }
+    ];
+
+    const agg = await productModel.aggregate(pipeline);
+    const results = agg?.[0]?.results || [];
+    const total   = agg?.[0]?.totalCount?.[0]?.count || 0;
+
+    return res.status(200).json({
+      success: true,
+      page,
+      limit,
+      total,
+      results,
+      debug: { tokens }
+    });
+  } catch (error) {
+    console.error("Error fetching deep search:", error);
+    return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
 

@@ -12,12 +12,12 @@ import {
 } from "../controller/adminController.js";
 
 import {
-  getCategoriesWithProducts ,getCategoriesWithSubcategory,getCategoriesWithProductsByID, AddCart, contactEnquire, razorpayCallback, UpdateCart, getCart, userTokenController, userBlogsController, Userlogin, SignupUser, getAllBlogsController, createBlogController,
+  getCategoriesWithProducts ,getCategoriesWithSubcategory,getCategoriesWithProductsByID,getProductDeepSearch, AddCart, contactEnquire, razorpayCallback, UpdateCart, getCart, userTokenController, userBlogsController, Userlogin, SignupUser, getAllBlogsController, createBlogController,
   LoginAndVerifyOTP, updateBlogController, deleteBlogController, getBlogIdController, CreateChatController, findUserschatController, findchatController
-  , EmailVerify, postman, PaymentResponse, PaymentRequest, getProductsByFilterUser, cancelOrderUser, ViewAllZones, ViewAllZonesOnly,getProductsByHSN, AuthUserByID, updateProfileUser, SignupNewUser, LoginUserWithOTP, LoginUserWithPass, SendOTP,SignupLoginNew, SignupLoginUser, getTaxIdUser, ViewAllUserTaxes, ViewCompareByUser, applyPromoCode, getHomeLayoutData, AddWishListByUser, deleteCompareByUser, deleteWishListByUser, ViewWishListByUser, AddCompareByUser, ViewProductRating, ViewCategoryRating, AddRating, UsergetAllCategories, UsergetAllProducts, UsergetAllHomeProducts,FullOrdersViewController, userOrdersViewController, getAllAttributeUser, getProductIdUser, updateUserController, createOrderController, updateUserAndCreateOrderController, userOrdersController, getHomeData, GetAllCategoriesByParentIdController, GetAllCategoriesBySlugController
+  , EmailVerify, postman, PaymentResponse, PaymentRequest, getProductsByFilterUser, cancelOrderUser, ViewAllZones, ViewAllZonesOnly,getProductsByHSN, AuthUserByID, updateProfileUser, SignupNewUser, LoginUserWithOTP, LoginUserWithPass, SendOTP,SignupLoginNew, SignupLoginUser, getTaxIdUser, ViewAllUserTaxes, ViewCompareByUser, applyPromoCode, getHomeLayoutData, AddWishListByUser, deleteCompareByUser, deleteWishListByUser, ViewWishListByUser, AddCompareByUser,ViewVendorRating, ViewProductRating, ViewCategoryRating,AddVendorRating, AddRating, UsergetAllCategories, UsergetAllProducts, UsergetAllHomeProducts,FullOrdersViewController, userOrdersViewController, getAllAttributeUser, getProductIdUser, updateUserController, createOrderController, updateUserAndCreateOrderController, userOrdersController, getHomeData, GetAllCategoriesByParentIdController, GetAllCategoriesBySlugController
   , BuyPlanUser, GetPlanUser, HomeSendEnquire,contactSendEnquire,HomeSendEnquireCatgeory, getAllPlanCategoryController, uploadDataZone, deleteAllZones, SignupUserType, updateDetailsUser, updateDetailsUserHealth, getAllPlanUser, getProductIdUserBySlug
   , getAllVendor, getAllDepartment, profileVendorImage, ApiGetKey, PaymentSuccess, PaymentFail,
-  updateVendorProfileUser, paymentVerification, BuyPlanAddUser, BuyPlanByUser, PayuHash, userPlanIdController,ViewAllZonesCategory, ViewAllZonesDepartment, getVendorById, HomeSendvendorEnquire, ApplyEnquireStatus, SenderEnquireStatus, AllPayment, downloadUserInvoice, checkUserPlan, GetWebsiteData, GetWebsiteData_old
+  updateVendorProfileUser, CreateVendorProfileUser,paymentVerification, BuyPlanAddUser, BuyPlanByUser, PayuHash, userPlanIdController,ViewAllZonesCategory, ViewAllZonesDepartment, getVendorById, HomeSendvendorEnquire, ApplyEnquireStatus, SenderEnquireStatus, AllPayment, downloadUserInvoice, checkUserPlan, GetWebsiteData, GetWebsiteData_old
 } from "../controller/userController.js"
 import authenticateToken from "../middleware/authMiddleware.js";
 import { uploadImage, handleImageUpload } from "../controller/adminController.js";
@@ -274,7 +274,13 @@ router.get('/home-layout-data', checkOrigin, getHomeLayoutData);
 
 router.post('/add-rating', checkOrigin, AddRating);
 
+router.post('/add-vendor-rating', checkOrigin, AddVendorRating);
+
 router.get('/view-product-rating/:id', checkOrigin, ViewProductRating);
+
+router.get('/view-vendor-rating/:id', checkOrigin, ViewVendorRating);
+
+
 
 router.get('/all-rating/', checkOrigin, ViewCategoryRating);
 
@@ -394,6 +400,13 @@ router.put(
   updateVendorProfileUser
 );
 
+router.put(
+  "/create-user-vendor/:id",
+  profileVendorImage,
+  CreateVendorProfileUser
+);
+
+
 router.get("/admin/all-healthcard", AdminAllEnquireStatus);
 
 router.get("/payu-hash", PayuHash);
@@ -406,6 +419,9 @@ router.post("/payment-fail", PaymentFail);
 router.get('/get-catgeory-product', getCategoriesWithProducts );
 router.get('/get-category-subcategory', getCategoriesWithSubcategory );
 router.get('/get-category-product-id', getCategoriesWithProductsByID );
+
+router.get('/deepsearch', getProductDeepSearch );
+
 
 
 export default router;

@@ -1673,6 +1673,8 @@ export const getAllReviewsAdmin = async (req, res) => {
     const page = parseInt(req.query.page) || 1; // Current page, default is 1
     const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
     const searchTerm = req.query.search || ""; // Get search term from the query parameters
+    const type = req.query.type || ""; // Get search term from the query parameters
+    const vendorId = req.query.vendorId || ""; // Get search term from the query parameters
 
     const skip = (page - 1) * limit;
 
@@ -1684,6 +1686,16 @@ export const getAllReviewsAdmin = async (req, res) => {
         { productId: { $regex: searchTerm, $options: "i" } }, // Case-insensitive email search
       ];
     }
+    if(type === 'product'){
+      query.productId = { $ne: null };
+    }else if(type === 'vendor'){
+      query.vendorId = { $ne: null };
+    }
+
+    if(vendorId && vendorId.length > 0){
+    query.vendorId = vendorId;
+    }
+
 
     const totalrating = await ratingModel.countDocuments(query); // Count documents matching the query
 
@@ -1734,6 +1746,7 @@ export const getAllEnquireAdmin = async (req, res) => {
     const page = parseInt(req.query.page) || 1; // Current page, default is 1
     const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
     const searchTerm = req.query.search || ""; // Get search term from the query parameters
+    const senderId = req.query.senderId || ""; // Get search term from the query parameters
 
     const skip = (page - 1) * limit;
 
@@ -1744,6 +1757,9 @@ export const getAllEnquireAdmin = async (req, res) => {
         { userId: { $regex: searchTerm, $options: "i" } }, // Case-insensitive username search
         { productId: { $regex: searchTerm, $options: "i" } }, // Case-insensitive email search
       ];
+    }
+    if(senderId && senderId.length > 0){
+    query.senderId = senderId;
     }
 
     const totalpage = await enquireModel.countDocuments(query); // Count documents matching the query
@@ -2974,7 +2990,14 @@ export const getAllZonesAdmin = async (req, res) => {
 export const updateZonesAdmin = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, status, cities, primary } = req.body;
+    const { name, status, pincodes, primary } = req.body;
+
+    const formattedPincodes = Object.entries(pincodes || {}).map(
+  ([code, areas]) => ({
+    code,
+    areas,
+  })
+);
 
     console.log("primary", primary);
 
@@ -2992,8 +3015,9 @@ export const updateZonesAdmin = async (req, res) => {
       }
     }
 
+    console.log('formattedPincodes',formattedPincodes)
     // Update fields
-    const updateFields = { name, status, primary, cities };
+    const updateFields = { name, status, primary, pincodes : formattedPincodes };
 
     // Update the zone
     const updatedZone = await zonesModel.findByIdAndUpdate(id, updateFields, {

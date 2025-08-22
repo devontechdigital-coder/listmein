@@ -12,6 +12,19 @@ const zonesSchema = new mongoose.Schema(
         cities: {
             type:Array
         },
+    
+ pincodes: [
+      {
+        code: {
+          type: String,
+          required: true,
+          trim: true,
+          match: /^\d{6}$/, // Indian pincode format
+        },
+        areas: [{ type: String, trim: true }],
+      },
+    ],
+
         status: {
             type: String,
         }
