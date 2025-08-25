@@ -7520,7 +7520,7 @@ const tokenize = (raw) => {
   return [...new Set(toks)];
 };
 
-export const getProductDeepSearch = async (req, res) => {
+export const getProductDeepSearch_old = async (req, res) => {
   try {
     const { keywords } = req.query;
     if (!keywords) {
@@ -7674,6 +7674,352 @@ export const getProductDeepSearch = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching deep search:", error);
+    return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+  }
+};
+
+
+
+ 
+
+
+export const getProductDeepSearch = async (req, res) => {
+  try {
+    const { keywords } = req.query;
+    if (!keywords) {
+      return res.status(400).json({ success: false, message: "keywords is required" });
+    }
+
+    const page  = Math.max(parseInt(req.query.page  || "1", 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 100);
+    const skip  = (page - 1) * limit;
+    const sortParam = String(req.query.sort || "relevance");
+
+    // tokens (full words only, no stopwords)
+    const tokens = tokenize(keywords);
+    if (!tokens.length) {
+      return res.status(400).json({ success: false, message: "No meaningful keywords after filtering." });
+    }
+
+    // title must match at least one FULL word
+    const regexesBounded = tokens.map((t) => new RegExp(`\\b${escapeReg(t)}\\b`, "i"));
+
+    // pattern for $regexMatch in other fields
+    const boundedAlt = tokens.map((t) => `\\b${escapeReg(t)}\\b`).join("|");
+    const pattern = `(${boundedAlt})`;
+    const options = "i";
+
+    const pipeline = [
+      // Join vendor/user doc
+      { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+
+      // Join ratings by product._id
+      {
+        $lookup: {
+          from: "ratings",
+          let: { pid: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$productId", "$$pid"] } } },
+            // keep only approved/active ratings if you use status
+            { $match: { status: "1" } },
+            { $project: { _id: 1, rating: 1, createdAt: 1 } }
+          ],
+          as: "ratings"
+        }
+      },
+      // Compute avg & count from ratings
+      {
+        $addFields: {
+          ratingCount: { $size: "$ratings" },
+          avgRating: {
+            $cond: [
+              { $gt: [{ $size: "$ratings" }, 0] },
+              { $avg: "$ratings.rating" },
+              null
+            ]
+          }
+        }
+      },
+
+      // Precompute strings/arrays used for search
+      {
+        $addFields: {
+          _statename: { $ifNull: ["$user.statename", ""] },
+          _coverageArr: {
+            $cond: [
+              { $and: [ { $ne: ["$user.coverage", null] }, { $isArray: "$user.coverage" } ] },
+              "$user.coverage",
+              []
+            ]
+          },
+          _featuresStr: {
+            $cond: [
+              { $isArray: "$features" },
+              {
+                $reduce: {
+                  input: "$features",
+                  initialValue: "",
+                  in: { $concat: ["$$value", " ", { $toString: "$$this" }] }
+                }
+              },
+              ""
+            ]
+          }
+        }
+      },
+
+      // HARD REQUIREMENT: Title must match ≥1 whole keyword
+      { $match: { $or: regexesBounded.map((r) => ({ title: { $regex: r } })) } },
+
+      // Scoring booleans (also full-word)
+      {
+        $addFields: {
+          coverageMatch: {
+            $anyElementTrue: {
+              $map: {
+                input: "$_coverageArr",
+                as: "c",
+                in: { $regexMatch: { input: { $toString: "$$c" }, regex: pattern, options } }
+              }
+            }
+          },
+          stateMatch: { $regexMatch: { input: "$_statename", regex: pattern, options } },
+          titleMatch: { $regexMatch: { input: "$title",      regex: pattern, options } },
+          otherMatch: {
+            $or: [
+              { $regexMatch: { input: "$description",     regex: pattern, options } },
+              { $regexMatch: { input: "$metaTitle",       regex: pattern, options } },
+              { $regexMatch: { input: "$metaDescription", regex: pattern, options } },
+              { $regexMatch: { input: "$metaKeywords",    regex: pattern, options } },
+              { $regexMatch: { input: "$_featuresStr",    regex: pattern, options } }
+            ]
+          }
+        }
+      },
+
+      // Weighted relevance score
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $cond: [{ $eq: ["$coverageMatch", true] }, 3, 0] },
+              { $cond: [{ $eq: ["$stateMatch",    true] }, 2, 0] },
+              { $cond: [{ $eq: ["$titleMatch",    true] }, 1.5, 0] },
+              { $cond: [{ $eq: ["$otherMatch",    true] }, 1, 0] }
+            ]
+          }
+        }
+      }
+    ];
+
+    // Dynamic sort
+    let sortStage = { score: -1, updatedAt: -1, createdAt: -1 }; // default: relevance
+    if (sortParam === "recent")      sortStage = { updatedAt: -1, createdAt: -1 };
+    if (sortParam === "price_asc")   sortStage = { salePrice: 1,  regularPrice: 1, updatedAt: -1 };
+    if (sortParam === "price_desc")  sortStage = { salePrice: -1, regularPrice: -1, updatedAt: -1 };
+    if (sortParam === "rating_desc") sortStage = { avgRating: -1, ratingCount: -1, updatedAt: -1 };
+    if (sortParam === "rating_asc")  sortStage = { avgRating:  1, ratingCount:  1, updatedAt: -1 };
+
+    pipeline.push({ $sort: sortStage });
+
+    // Pagination & projection
+    pipeline.push({
+      $facet: {
+        results: [
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              description: 1,
+              pImage: 1,
+              images: 1,
+              slug: 1,
+              salePrice: 1,
+              regularPrice: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              user: { username: 1, statename: 1, coverage: 1 },
+              // relevance flags
+              score: 1,
+              coverageMatch: 1,
+              stateMatch: 1,
+              titleMatch: 1,
+              otherMatch: 1,
+              // ratings
+              avgRating: 1,
+              ratingCount: 1
+            }
+          }
+        ],
+        totalCount: [{ $count: "count" }]
+      }
+    });
+
+    const agg = await productModel.aggregate(pipeline);
+    const results = agg?.[0]?.results || [];
+    const total   = agg?.[0]?.totalCount?.[0]?.count || 0;
+
+    return res.status(200).json({
+      success: true,
+      page,
+      limit,
+      total,
+      results,
+      debug: { tokens, sortParam }
+    });
+  } catch (error) {
+    console.error("Error fetching deep search:", error);
+    return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+  }
+};
+
+export const getSellerDeepSearch = async (req, res) => {
+  try {
+    const { keywords } = req.query;
+    if (!keywords) {
+      return res.status(400).json({ success: false, message: "keywords is required" });
+    }
+
+    const page  = Math.max(parseInt(req.query.page  || "1", 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 100);
+    const skip  = (page - 1) * limit;
+    const sortParam = String(req.query.sort || "relevance");
+
+    // tokens & regex
+    const tokens = tokenize(keywords);
+    if (!tokens.length) {
+      return res.status(400).json({ success: false, message: "No meaningful keywords" });
+    }
+
+    const regexes = tokens.map((t) => new RegExp(`\\b${escapeReg(t)}\\b`, "i"));
+    const alt = tokens.map((t) => `\\b${escapeReg(t)}\\b`).join("|");
+    const pattern = `(${alt})`;
+    const options = "i";
+
+    const pipeline = [
+      { $match: { type: 3 } }, // sellers only
+
+      // --- main keyword filter ---
+      {
+        $match: {
+          $or: [
+            ...regexes.map((r) => ({ username: { $regex: r } })),
+            ...regexes.map((r) => ({ statename: { $regex: r } })),
+            { coverage: { $elemMatch: { $regex: new RegExp(pattern, options) } } }
+          ]
+        }
+      },
+
+      // ratings join
+      {
+        $lookup: {
+          from: "ratings",
+          let: { uid: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$vendorId", "$$uid"] } } },
+            { $match: { status: "1" } },
+            { $project: { rating: 1 } }
+          ],
+          as: "ratings"
+        }
+      },
+      {
+        $addFields: {
+          ratingCount: { $size: "$ratings" },
+          avgRating: {
+            $cond: [
+              { $gt: [{ $size: "$ratings" }, 0] },
+              { $avg: "$ratings.rating" },
+              null
+            ]
+          }
+        }
+      },
+
+      // scoring signals
+      {
+        $addFields: {
+          usernameMatch: { $regexMatch: { input: "$username", regex: pattern, options } },
+          stateMatch:    { $regexMatch: { input: "$statename", regex: pattern, options } },
+          coverageMatch: {
+            $anyElementTrue: {
+              $map: {
+                input: "$coverage",
+                as: "c",
+                in: { $regexMatch: { input: "$$c", regex: pattern, options } }
+              }
+            }
+          }
+        }
+      },
+
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $cond: [{ $eq: ["$usernameMatch", true] }, 3, 0] },
+              { $cond: [{ $eq: ["$coverageMatch", true] }, 2, 0] },
+              { $cond: [{ $eq: ["$stateMatch", true] }, 1.5, 0] }
+            ]
+          }
+        }
+      }
+    ];
+
+    // dynamic sort
+    let sortStage = { score: -1, updatedAt: -1 };
+    if (sortParam === "recent") sortStage = { updatedAt: -1, createdAt: -1 };
+    if (sortParam === "rating_desc") sortStage = { avgRating: -1, ratingCount: -1 };
+    if (sortParam === "rating_asc")  sortStage = { avgRating: 1, ratingCount: 1 };
+
+    pipeline.push({ $sort: sortStage });
+
+    pipeline.push({
+      $facet: {
+        results: [
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              email: 1,
+              phone: 1,
+              profile: 1,
+              statename: 1,
+              city: 1,
+               gallery: 1,
+              coverage: 1,
+              avgRating: 1,
+              ratingCount: 1,
+              score: 1,
+              usernameMatch: 1,
+              coverageMatch: 1,
+              stateMatch: 1
+            }
+          }
+        ],
+        totalCount: [{ $count: "count" }]
+      }
+    });
+
+    const agg = await userModel.aggregate(pipeline);
+    const results = agg?.[0]?.results || [];
+    const total   = agg?.[0]?.totalCount?.[0]?.count || 0;
+
+    return res.status(200).json({
+      success: true,
+      page,
+      limit,
+      total,
+      results,
+      debug: { tokens, sortParam }
+    });
+  } catch (error) {
+    console.error("Error fetching seller deep search:", error);
     return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
