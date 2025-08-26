@@ -17,7 +17,7 @@ import {
   , EmailVerify, postman, PaymentResponse, PaymentRequest, getProductsByFilterUser, cancelOrderUser, ViewAllZones, ViewAllZonesOnly,getProductsByHSN, AuthUserByID, updateProfileUser, SignupNewUser, LoginUserWithOTP, LoginUserWithPass, SendOTP,SignupLoginNew, SignupLoginUser, getTaxIdUser, ViewAllUserTaxes, ViewCompareByUser, applyPromoCode, getHomeLayoutData, AddWishListByUser, deleteCompareByUser, deleteWishListByUser, ViewWishListByUser, AddCompareByUser,ViewVendorRating, ViewProductRating, ViewCategoryRating,AddVendorRating, AddRating, UsergetAllCategories, UsergetAllProducts, UsergetAllHomeProducts,FullOrdersViewController, userOrdersViewController, getAllAttributeUser, getProductIdUser, updateUserController, createOrderController, updateUserAndCreateOrderController, userOrdersController, getHomeData, GetAllCategoriesByParentIdController, GetAllCategoriesBySlugController
   , BuyPlanUser, GetPlanUser, HomeSendEnquire,contactSendEnquire,HomeSendEnquireCatgeory, getAllPlanCategoryController, uploadDataZone, deleteAllZones, SignupUserType, updateDetailsUser, updateDetailsUserHealth, getAllPlanUser, getProductIdUserBySlug
   , getAllVendor, getAllDepartment, profileVendorImage, ApiGetKey, PaymentSuccess, PaymentFail,
-  updateVendorProfileUser, CreateVendorProfileUser,paymentVerification, BuyPlanAddUser, BuyPlanByUser, PayuHash, userPlanIdController,ViewAllZonesCategory, ViewAllZonesDepartment, getVendorById, HomeSendvendorEnquire, ApplyEnquireStatus, SenderEnquireStatus, AllPayment, downloadUserInvoice, checkUserPlan, GetWebsiteData, GetWebsiteData_old
+  updateVendorProfileUser, OrderPaymentVerification,CreateVendorProfileUser,paymentVerification, BuyPlanAddUser, BuyPlanByUser, PayuHash, userPlanIdController,ViewAllZonesCategory, ViewAllZonesDepartment, getVendorById, HomeSendvendorEnquire, ApplyEnquireStatus, SenderEnquireStatus, AllPayment, downloadUserInvoice, checkUserPlan, GetWebsiteData, GetWebsiteData_old
 } from "../controller/userController.js"
 import authenticateToken from "../middleware/authMiddleware.js";
 import { uploadImage, handleImageUpload } from "../controller/adminController.js";
@@ -218,6 +218,9 @@ router.post("/user-login-all", UserloginAll);
 //router.post('/create-order', createOrderController);
 router.post('/create-order/:id', checkOrigin, updateUserAndCreateOrderController);
 router.post('/razorpayCallback', razorpayCallback);
+
+router.post("/order-payment-verification", OrderPaymentVerification);
+
 
 router.put('/cancel-order/:id', cancelOrderUser);
 
