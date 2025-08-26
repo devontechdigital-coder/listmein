@@ -53,8 +53,15 @@ const homeSchema = new mongoose.Schema(
         razorpay: {
             type: String,
             default: ""
-        }
-
+        },
+   keyId: {
+          type: String,
+            default: ""
+        },
+          keySecret: {
+          type: String,
+            default: ""
+        },
     },
     { timestamps: true }
 );

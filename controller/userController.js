@@ -40,6 +40,7 @@ import multer from "multer";
 import { exec } from "child_process";
 import util from "util";
 import crypto from "crypto";  // Ensure you require the crypto module if you haven't
+import razorpay from "razorpay";
 
 const execPromise = util.promisify(exec);
 
@@ -964,8 +965,8 @@ export const createOrderController = async (req, res) => {
 };
 
 export const updateUserAndCreateOrderController_old = async (req, res) => {
-  let session;
-  let transactionInProgress = false;
+  // let session;
+  // let transactionInProgress = false;
 
   const { id } = req.params;
   const {
@@ -989,9 +990,24 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
   } = req.body;
 
   try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    transactionInProgress = true;
+    // session = await mongoose.startSession();
+    // session.startTransaction();
+    // transactionInProgress = true;
+
+      // Initialize Razorpay with the keys from the database
+        const instance = new razorpay({
+            key_id: keyId,
+            key_secret: keySecret,
+        });
+
+        
+        
+        const options = {
+            amount: Number(totalAmount * 100), // Razorpay expects the amount in paise
+            currency: "INR",
+        };
+
+        const order = await instance.orders.create(options);
 
     // Update user
     const user = await userModel.findByIdAndUpdate(
@@ -1008,7 +1024,7 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
     }
 
     // Create order for the updated user
-    if (!status || !mode || !details || !totalAmount || !userId || !payment) {
+    if (!mode || !details || !totalAmount || !userId ) {
       return res.status(400).json({
         success: false,
         message: "Please provide all fields for the order",
@@ -1038,10 +1054,12 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
       payment: 0,
       primary,
       shipping,
-      status,
+      status:1,
       totalAmount,
       userId,
       orderId: order_id,
+      razorpay_order_id: order.id,
+      payment:0,
     });
 
     await newOrder.save({ session });
@@ -1059,19 +1077,8 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
       }
     }
 
-    // Commit transaction
-    await session.commitTransaction();
-    transactionInProgress = false;
 
-    if (mode === "COD") {
-      // Send order confirmation email
-      await sendOrderConfirmationEmail(email, username, userId, newOrder);
-      const norder_id = newOrder.orderId;
-
-      // block
-      //  await sendOrderOTP(phone, norder_id);
-
-      return res.status(201).json({
+          return res.status(201).json({
         success: true,
         message: "Order created successfully",
         newOrder,
@@ -1079,27 +1086,53 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
         Amount: totalAmount,
         online: false,
       });
-    } else {
-      const tid = Math.floor(Math.random() * 1000000); // Generating random transaction ID
-      const order_id = newOrder.orderId; // Generating order ID
-      const accessCode = process.env.ACCESS_CODE;
-      const merchant_id = process.env.MERCHANT_ID;
-      const WORKING_KEY = process.env.WORKING_KEY;
-      const redirect_url = process.env.REDIRECT_URL;
-      const cancel_url = process.env.CANCEL_URL;
 
-      return res.status(201).json({
-        success: true,
-        online: true,
-        tid,
-        order_id,
-        accessCode,
-        merchant_id,
-        WORKING_KEY,
-        cancel_url,
-        redirect_url,
-      });
-    }
+
+    // Commit transaction
+    // await session.commitTransaction();
+    // transactionInProgress = false;
+
+
+
+    // if (mode === "COD") {
+    //   // Send order confirmation email
+    //   await sendOrderConfirmationEmail(email, username, userId, newOrder);
+    //   const norder_id = newOrder.orderId;
+
+    //   // block
+    //   //  await sendOrderOTP(phone, norder_id);
+
+    //   return res.status(201).json({
+    //     success: true,
+    //     message: "Order created successfully",
+    //     newOrder,
+    //     user,
+    //     Amount: totalAmount,
+    //     online: false,
+    //   });
+    // } else {
+    //   const tid = Math.floor(Math.random() * 1000000); // Generating random transaction ID
+    //   const order_id = newOrder.orderId; // Generating order ID
+    //   const accessCode = process.env.ACCESS_CODE;
+    //   const merchant_id = process.env.MERCHANT_ID;
+    //   const WORKING_KEY = process.env.WORKING_KEY;
+    //   const redirect_url = process.env.REDIRECT_URL;
+    //   const cancel_url = process.env.CANCEL_URL;
+
+    //   return res.status(201).json({
+    //     success: true,
+    //     online: true,
+    //     tid,
+    //     order_id,
+    //     accessCode,
+    //     merchant_id,
+    //     WORKING_KEY,
+    //     cancel_url,
+    //     redirect_url,
+    //   });
+    // }
+
+
   } catch (error) {
     if (transactionInProgress) {
       try {
@@ -1122,8 +1155,8 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
 };
 
 export const updateUserAndCreateOrderController = async (req, res) => {
-  let session;
-  let transactionInProgress = false;
+  // let session;
+  // let transactionInProgress = false;
 
   const { id } = req.params;
   const {
@@ -1147,9 +1180,38 @@ export const updateUserAndCreateOrderController = async (req, res) => {
   } = req.body;
 
   try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    transactionInProgress = true;
+    // session = await mongoose.startSession();
+    // session.startTransaction();
+    // transactionInProgress = true;
+
+        // Retrieve the Razorpay keys from the database
+        const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        console.log('homeData',homeData)
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+
+       const instance = new razorpay({
+            key_id: keyId,
+            key_secret: keySecret,
+        });
+
+        
+        
+        const options = {
+            amount: Number(totalAmount * 100), // Razorpay expects the amount in paise
+            currency: "INR",
+        };
+
+        const order = await instance.orders.create(options);
+
+
 
     // Update user
     const user = await userModel.findByIdAndUpdate(
@@ -1165,7 +1227,7 @@ export const updateUserAndCreateOrderController = async (req, res) => {
       });
     }
 
-    if (!status || !mode || !details || !totalAmount || !userId || !payment) {
+    if ( !mode || !details || !totalAmount || !userId ) {
       return res.status(400).json({
         success: false,
         message: "Please provide all fields for the order",
@@ -1185,18 +1247,20 @@ export const updateUserAndCreateOrderController = async (req, res) => {
       payment: 0,
       primary,
       shipping,
-      status,
+      status:1,
       totalAmount,
       userId,
       orderId: order_id,
-      type:2,
+      // type:2,
+    razorpay_order_id: order.id,
+      payment:0,
     });
 
-    await newOrder.save({ session });
+await newOrder.save();
 
     // Update user's orders
     user.orders.push(newOrder);
-    await user.save({ session });
+    await user.save();
 
     // // ✅ Validate product ID and update stock
     // for (const item of items) {
@@ -1214,62 +1278,136 @@ export const updateUserAndCreateOrderController = async (req, res) => {
     // }
 
     // Commit transaction
-    await session.commitTransaction();
-    transactionInProgress = false;
+    // await session.commitTransaction();
+    // transactionInProgress = false;
 
-    if (mode === "COD") {
-      await sendOrderConfirmationEmail(email, username, userId, newOrder);
-      const norder_id = newOrder.orderId;
+    // if (mode === "COD") {
+    //   await sendOrderConfirmationEmail(email, username, userId, newOrder);
+    //   const norder_id = newOrder.orderId;
 
-      return res.status(201).json({
+    //   return res.status(201).json({
+    //     success: true,
+    //     message: "Order created successfully",
+    //     newOrder,
+    //     user,
+    //     Amount: totalAmount,
+    //     online: false,
+    //   });
+    // } else {
+    //   const tid = Math.floor(Math.random() * 1000000);
+    //   const order_id = newOrder.orderId;
+    //   const accessCode = process.env.ACCESS_CODE;
+    //   const merchant_id = process.env.MERCHANT_ID;
+    //   const WORKING_KEY = process.env.WORKING_KEY;
+    //   const redirect_url = process.env.REDIRECT_URL;
+    //   const cancel_url = process.env.CANCEL_URL;
+
+    //   return res.status(201).json({
+    //     success: true,
+    //     online: true,
+    //     tid,
+    //     order_id,
+    //     accessCode,
+    //     merchant_id,
+    //     WORKING_KEY,
+    //     cancel_url,
+    //     redirect_url,
+    //   });
+    // }
+
+         return res.status(201).json({
         success: true,
         message: "Order created successfully",
-        newOrder,
+        Order:newOrder,
         user,
         Amount: totalAmount,
         online: false,
       });
-    } else {
-      const tid = Math.floor(Math.random() * 1000000);
-      const order_id = newOrder.orderId;
-      const accessCode = process.env.ACCESS_CODE;
-      const merchant_id = process.env.MERCHANT_ID;
-      const WORKING_KEY = process.env.WORKING_KEY;
-      const redirect_url = process.env.REDIRECT_URL;
-      const cancel_url = process.env.CANCEL_URL;
 
-      return res.status(201).json({
-        success: true,
-        online: true,
-        tid,
-        order_id,
-        accessCode,
-        merchant_id,
-        WORKING_KEY,
-        cancel_url,
-        redirect_url,
-      });
-    }
+
   } catch (error) {
-    if (transactionInProgress) {
-      try {
-        await session.abortTransaction();
-      } catch (abortError) {
-        console.error("Error aborting transaction:", abortError);
-      }
-    }
+    // if (transactionInProgress) {
+    //   try {
+    //     await session.abortTransaction();
+    //   } catch (abortError) {
+    //     console.error("Error aborting transaction:", abortError);
+    //   }
+    // }
     console.error("Error:", error);
     return res.status(400).json({
       success: false,
       message: "Error while creating order",
       error: error.message,
     });
-  } finally {
-    if (session) {
-      session.endSession();
-    }
+  }  
+};
+
+
+export const OrderPaymentVerification = async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  
+        const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+
+  const expectedsgnature = crypto
+    .createHmac("sha256", keySecret)
+    .update(body.toString())
+    .digest("hex");
+
+  const isauth = expectedsgnature === razorpay_signature;
+  if (isauth) {
+    // await Payment.create({
+    //   razorpay_order_id,
+    //   razorpay_payment_id,
+    //   razorpay_signature,
+    // });
+
+      await orderModel.findOneAndUpdate(
+      { razorpay_order_id: razorpay_order_id },
+      {
+        razorpay_payment_id,
+        razorpay_signature,
+        payment: 1,
+      },
+      { new: true } // This option returns the updated document
+    );
+    console.log(
+      "razorpay_order_id, razorpay_payment_id, razorpay_signature",
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+ 
+
+    res.redirect(
+      `${process.env.LIVEWEB}account/all-order`
+    );
+  } else {
+    await orderModel.findOneAndUpdate(
+      { razorpay_order_id },
+      {
+        payment: 2,
+      },
+      { new: true } // This option returns the updated document
+    );
+ res.redirect(
+      `${process.env.LIVEWEB}account/all-order`
+    );
+    // res.status(400).json({ success: false });
   }
 };
+
+
 
 export const PaymentRequest = async (req, res) => {
   try {
@@ -7998,7 +8136,7 @@ export const getSellerDeepSearch = async (req, res) => {
               score: 1,
               usernameMatch: 1,
               coverageMatch: 1,
-              stateMatch: 1
+              stateMatch: 1,
             }
           }
         ],
