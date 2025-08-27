@@ -6753,7 +6753,7 @@ export const paymentVerification_old = async (req, res) => {
   }
 };
 
-export const paymentVerification = async (req, res) => {
+export const paymentVerification_last = async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
   const body = razorpay_order_id + "|" + razorpay_payment_id;
@@ -6862,6 +6862,113 @@ export const paymentVerification = async (req, res) => {
 };
 
 
+export const paymentVerification = async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.LIVESECRET)
+    .update(body.toString())
+    .digest("hex");
+  const isAuth = expectedSignature === razorpay_signature;
+
+  if (isAuth) {
+    // Update payment status in the database
+    const payment = await buyPlanModel.findOneAndUpdate(
+      { razorpay_order_id: razorpay_order_id },
+      {
+        razorpay_payment_id,
+        razorpay_signature,
+        payment: 1,
+      },
+      { new: true }
+    );
+
+    if (payment) {
+      // Populate userId to fetch the email
+      const user = await payment.populate('userId'); // Assuming userId is populated
+
+    //   if (user) {
+
+    //        // Send notification
+    //        const notificationData = {
+    //         mobile: `91${user.phone}`,
+    //         templateid: "947805560855158",
+    //         overridebot: "yes",
+    //         template: {
+    //           components: [
+    //             {
+    //               type: "body",
+    //               parameters: [
+    //                 { type: "text", text: user.username },
+    //                 { type: "text", text: `https://ynbhealthcare.com/card-view/${payment._id}` }
+    //               ]
+    //             }
+    //           ]
+    //         }
+    //       };
+  
+    //  await axios.post(process.env.WHATSAPPAPI, notificationData, {
+    //     headers: {
+    //       "API-KEY": process.env.WHATSAPPKEY,
+    //       "Content-Type": "application/json"
+    //     }
+    //   });
+
+      
+
+    //     const userEmail = user.email;
+
+    //     // Send payment ID to the user's email using nodemailer
+    //     const transporter = nodemailer.createTransport({
+    //       host: process.env.MAIL_HOST, // Your SMTP host
+    //       port: process.env.MAIL_PORT, // Your SMTP port
+    //       secure: process.env.MAIL_ENCRYPTION === 'true', // If using SSL/TLS
+    //       auth: {
+    //         user: process.env.MAIL_USERNAME, // Your email address
+    //         pass: process.env.MAIL_PASSWORD, // Your email password
+    //       },
+    //     });
+
+    //     const mailOptions = {
+    //       from: process.env.MAIL_FROM_ADDRESS, // Your email address
+    //       to: userEmail, // User's email
+    //       subject: "Payment Successful - Your Payment ID",
+    //       text: `Hello, \n\nYour payment has been successfully processed. Your payment ID is: ${razorpay_payment_id}. \n\nThank you for choosing us!`,
+    //     };
+
+    //     // Send email
+    //     transporter.sendMail(mailOptions, (error, info) => {
+    //       if (error) {
+    //         console.error(error);
+    //         res.status(500).send("Failed to send email");
+    //       } else {
+    //         console.log("Payment ID sent to user email: " + info.response);
+    //       }
+    //     });
+    //   } else {
+    //     console.error("User not found for payment ID:", razorpay_order_id);
+    //   }
+
+      res.redirect(
+        `${process.env.LIVEWEB}paymentsuccess?reference=${razorpay_payment_id}`
+      );
+    } else {
+      res.status(404).send("Payment not found");
+    }
+  } else {
+    // Update payment status as failed
+    await buyPlanModel.findOneAndUpdate(
+      { razorpay_order_id },
+      {
+        payment: 2, // Assuming 2 indicates failed payment
+      },
+      { new: true }
+    );
+
+    res.status(400).json({ success: false });
+  }
+};
 
 const generateHash = (data, salt) => {
   // Concatenate the parameters in the correct order
@@ -6915,7 +7022,7 @@ export const PayuHash = (amount, firstName, email, phone, transactionId) => {
 };
 
 
-export const BuyPlanByUser = async (req, res) => {
+export const BuyPlanByUser_old = async (req, res) => {
   try {
 
     const {
@@ -6973,7 +7080,237 @@ export const BuyPlanByUser = async (req, res) => {
   }
 };
 
+export const BuyPlanByUser = async (req, res) => {
+  try {
+
+    const {
+      UserData,
+      planId,
+      totalAmount,
+    } = req.body;
+
+       const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        console.log('homeData',homeData)
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+         const instance = new razorpay({
+            key_id: keyId,
+            key_secret: keySecret,
+        });
+ 
+              const options = {
+            amount: Number(totalAmount * 100), // Razorpay expects the amount in paise
+            currency: "INR",
+        };
+        const order = await instance.orders.create(options);
+
+    // const transactionId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // const paymentData = PayuHash(totalAmount, UserData.username, UserData.email, UserData.phone, transactionId);
+
+    // Determine 'Local' based on the state
+    let Local = 0;
+    if (UserData.state) {
+      const State = await zonesModel.findById(UserData.state);
+      if (State && State.primary === 'true') {
+        Local = 1;
+      }
+    }
+
+    // Calculate the auto-increment ID for paymentId
+    const lastLead = await buyPlanModel.findOne().sort({ _id: -1 }).limit(1);
+    let paymentId = 1;
+    if (lastLead) {
+      paymentId = parseInt(lastLead.paymentId || 1) + 1;
+    }
+
+    const newBuyPlan = new buyPlanModel({
+      userId: UserData._id,
+      planId,
+      totalAmount,
+      paymentId,
+      note: 'Payment successfully added',
+      payment: 0, // Placeholder for actual payment value
+      Local,
+      razorpay_order_id: order.id
+    });
+
+    await newBuyPlan.save();
+
+    res.status(200).json({
+      success: true,
+      buyPlan: newBuyPlan, // Include the newly created buy plan in the response
+      message: "plan buy sucessfully.",
+     });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).send({
+      message: `Error occurred during user signup: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
 export const BuyPlanAddUser = async (req, res) => {
+  console.log(req.body);
+
+  try {
+    const {
+       
+      username,
+      phone,
+      email,
+      state,
+      statename,
+      country,
+      password,
+      pincode,
+      Gender,
+      DOB,
+      address,
+      city,
+      planId,
+      totalAmount,
+      pHealthHistory,
+      cHealthStatus,
+      aadharno,finalAmount
+     } = req.body;
+
+     const tttt = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" , tttt});
+    }
+    const profileImg = req.files ? req.files.profile : undefined;
+
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Check if user already exists by email or phone
+    const existingUser = await userModel.findOne({ $or: [{ email }, { phone }] });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: "User with this email or phone already exists" });
+    }
+
+    // Calculate the auto-increment ID for userId
+    const lastUser = await userModel.findOne().sort({ _id: -1 }).limit(1);
+    let userId = 1;
+    if (lastUser) {
+      userId = parseInt(lastUser.userId || 1) + 1;
+    }
+
+
+    // const transactionId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // const paymentData = PayuHash(totalAmount, username, email, phone, transactionId);
+	 
+      
+       const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        console.log('homeData',homeData)
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+        
+      const instance = new razorpay({
+            key_id: keyId,
+            key_secret: keySecret,
+        });
+              const options = {
+            amount: Number(totalAmount * 100), // Razorpay expects the amount in paise
+            currency: "INR",
+        };
+
+           const order = await instance.orders.create(options);
+
+
+    let updateField = {
+      type: 2,
+      username,
+      phone,
+      email,
+      password: hashedPassword,
+      pincode,
+      gender: Gender,
+      DOB,
+      address,
+      state,
+      statename,
+      country,
+      city,
+      userId,
+      pHealthHistory,
+      cHealthStatus,
+      aadharno
+    };
+    if (profileImg && profileImg[0]) {
+      updateField.profile = profileImg[0].path; // Assumes profile[0] is the uploaded file
+    }
+
+    const newUser = new userModel(updateField);
+
+    	 
+
+    await newUser.save();
+
+    // Determine 'Local' based on the state
+    let Local = 0;
+    if (newUser.state) {
+      const State = await zonesModel.findById(newUser.state);
+      if (State && State.primary === 'true') {
+        Local = 1;
+      }
+    }
+
+    // Calculate the auto-increment ID for paymentId
+    const lastLead = await buyPlanModel.findOne().sort({ _id: -1 }).limit(1);
+    let paymentId = 1;
+    if (lastLead) {
+      paymentId = parseInt(lastLead.paymentId || 1) + 1;
+    }
+
+    const newBuyPlan = new buyPlanModel({
+      userId: newUser._id,
+      planId,
+      totalAmount,
+      paymentId,
+      note: 'Payment successfully added',
+      payment: 0, // Placeholder for actual payment value
+      Local,
+  razorpay_order_id: order.id,
+    });
+
+    await newBuyPlan.save();
+
+    res.status(201).json({
+      success: true,
+      user: newUser,
+      buyPlan: newBuyPlan, // Include the newly created buy plan in the response
+      message: "User signed up successfully and plan added.",
+       
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).send({
+      message: `Error occurred during user signup: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const BuyPlanAddUser_old_last = async (req, res) => {
   console.log(req.body);
 
   try {
