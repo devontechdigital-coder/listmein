@@ -6912,7 +6912,7 @@ export const paymentVerification = async (req, res) => {
  
 
     res.redirect(
-      `${process.env.LIVEWEB}paymentsuccess?reference=${razorpay_payment_id}`
+      `${process.env.LIVEWEB}account/all-transactions?reference=${razorpay_payment_id}`
     );
   } else {
     await orderModel.findOneAndUpdate(
