@@ -1343,71 +1343,6 @@ await newOrder.save();
 };
 
 
-export const OrderPaymentVerification = async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-    req.body;
-  const body = razorpay_order_id + "|" + razorpay_payment_id;
-  
-        const homeData = await homeModel.findOne({});
-        if (!homeData) {
-            return res.status(500).send({ message: 'Home data not found in the database', success: false });
-        }
-
-        const { keyId, keySecret } = homeData;
-        if (!keyId || !keySecret) {
-            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
-        }
-
-
-  const expectedsgnature = crypto
-    .createHmac("sha256", keySecret)
-    .update(body.toString())
-    .digest("hex");
-
-  const isauth = expectedsgnature === razorpay_signature;
-  if (isauth) {
-    // await Payment.create({
-    //   razorpay_order_id,
-    //   razorpay_payment_id,
-    //   razorpay_signature,
-    // });
-
-      await orderModel.findOneAndUpdate(
-      { razorpay_order_id: razorpay_order_id },
-      {
-        razorpay_payment_id,
-        razorpay_signature,
-        payment: 1,
-      },
-      { new: true } // This option returns the updated document
-    );
-    console.log(
-      "razorpay_order_id, razorpay_payment_id, razorpay_signature",
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    );
- 
-
-    res.redirect(
-      `${process.env.LIVEWEB}account/all-order`
-    );
-  } else {
-    await orderModel.findOneAndUpdate(
-      { razorpay_order_id },
-      {
-        payment: 2,
-      },
-      { new: true } // This option returns the updated document
-    );
- res.redirect(
-      `${process.env.LIVEWEB}account/all-order`
-    );
-    // res.status(400).json({ success: false });
-  }
-};
-
-
 
 export const PaymentRequest = async (req, res) => {
   try {
@@ -6862,112 +6797,138 @@ export const paymentVerification_last = async (req, res) => {
 };
 
 
-export const paymentVerification = async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
+export const OrderPaymentVerification = async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
   const body = razorpay_order_id + "|" + razorpay_payment_id;
-  const expectedSignature = crypto
-    .createHmac("sha256", process.env.LIVESECRET)
+  
+        const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+
+  const expectedsgnature = crypto
+    .createHmac("sha256", keySecret)
     .update(body.toString())
     .digest("hex");
-  const isAuth = expectedSignature === razorpay_signature;
 
-  if (isAuth) {
-    // Update payment status in the database
-    const payment = await buyPlanModel.findOneAndUpdate(
+  const isauth = expectedsgnature === razorpay_signature;
+  if (isauth) {
+    // await Payment.create({
+    //   razorpay_order_id,
+    //   razorpay_payment_id,
+    //   razorpay_signature,
+    // });
+
+      await orderModel.findOneAndUpdate(
       { razorpay_order_id: razorpay_order_id },
       {
         razorpay_payment_id,
         razorpay_signature,
         payment: 1,
       },
-      { new: true }
+      { new: true } // This option returns the updated document
     );
+    console.log(
+      "razorpay_order_id, razorpay_payment_id, razorpay_signature",
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+ 
 
-    if (payment) {
-      // Populate userId to fetch the email
-      const user = await payment.populate('userId'); // Assuming userId is populated
-
-    //   if (user) {
-
-    //        // Send notification
-    //        const notificationData = {
-    //         mobile: `91${user.phone}`,
-    //         templateid: "947805560855158",
-    //         overridebot: "yes",
-    //         template: {
-    //           components: [
-    //             {
-    //               type: "body",
-    //               parameters: [
-    //                 { type: "text", text: user.username },
-    //                 { type: "text", text: `https://ynbhealthcare.com/card-view/${payment._id}` }
-    //               ]
-    //             }
-    //           ]
-    //         }
-    //       };
-  
-    //  await axios.post(process.env.WHATSAPPAPI, notificationData, {
-    //     headers: {
-    //       "API-KEY": process.env.WHATSAPPKEY,
-    //       "Content-Type": "application/json"
-    //     }
-    //   });
-
-      
-
-    //     const userEmail = user.email;
-
-    //     // Send payment ID to the user's email using nodemailer
-    //     const transporter = nodemailer.createTransport({
-    //       host: process.env.MAIL_HOST, // Your SMTP host
-    //       port: process.env.MAIL_PORT, // Your SMTP port
-    //       secure: process.env.MAIL_ENCRYPTION === 'true', // If using SSL/TLS
-    //       auth: {
-    //         user: process.env.MAIL_USERNAME, // Your email address
-    //         pass: process.env.MAIL_PASSWORD, // Your email password
-    //       },
-    //     });
-
-    //     const mailOptions = {
-    //       from: process.env.MAIL_FROM_ADDRESS, // Your email address
-    //       to: userEmail, // User's email
-    //       subject: "Payment Successful - Your Payment ID",
-    //       text: `Hello, \n\nYour payment has been successfully processed. Your payment ID is: ${razorpay_payment_id}. \n\nThank you for choosing us!`,
-    //     };
-
-    //     // Send email
-    //     transporter.sendMail(mailOptions, (error, info) => {
-    //       if (error) {
-    //         console.error(error);
-    //         res.status(500).send("Failed to send email");
-    //       } else {
-    //         console.log("Payment ID sent to user email: " + info.response);
-    //       }
-    //     });
-    //   } else {
-    //     console.error("User not found for payment ID:", razorpay_order_id);
-    //   }
-
-      res.redirect(
-        `${process.env.LIVEWEB}paymentsuccess?reference=${razorpay_payment_id}`
-      );
-    } else {
-      res.status(404).send("Payment not found");
-    }
+    res.redirect(
+      `${process.env.LIVEWEB}account/all-order`
+    );
   } else {
-    // Update payment status as failed
-    await buyPlanModel.findOneAndUpdate(
+    await orderModel.findOneAndUpdate(
       { razorpay_order_id },
       {
-        payment: 2, // Assuming 2 indicates failed payment
+        payment: 2,
       },
-      { new: true }
+      { new: true } // This option returns the updated document
     );
-
-    res.status(400).json({ success: false });
+ res.redirect(
+      `${process.env.LIVEWEB}account/all-order`
+    );
+    // res.status(400).json({ success: false });
   }
+};
+
+
+
+
+export const paymentVerification = async (req, res) => {
+ 
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  
+        const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+
+  const expectedsgnature = crypto
+    .createHmac("sha256", keySecret)
+    .update(body.toString())
+    .digest("hex");
+
+  const isauth = expectedsgnature === razorpay_signature;
+  if (isauth) {
+    // await Payment.create({
+    //   razorpay_order_id,
+    //   razorpay_payment_id,
+    //   razorpay_signature,
+    // });
+
+      await buyPlanModel.findOneAndUpdate(
+      { razorpay_order_id: razorpay_order_id },
+      {
+        razorpay_payment_id,
+        razorpay_signature,
+        payment: 1,
+      },
+      { new: true } // This option returns the updated document
+    );
+    console.log(
+      "razorpay_order_id, razorpay_payment_id, razorpay_signature",
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+ 
+
+    res.redirect(
+      `${process.env.LIVEWEB}paymentsuccess?reference=${razorpay_payment_id}`
+    );
+  } else {
+    await orderModel.findOneAndUpdate(
+      { razorpay_order_id },
+      {
+        payment: 2,
+      },
+      { new: true } // This option returns the updated document
+    );
+ res.redirect(
+      `${process.env.LIVEWEB}`
+    );
+    // res.status(400).json({ success: false });
+  }
+
+   
 };
 
 const generateHash = (data, salt) => {
