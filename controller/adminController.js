@@ -1854,10 +1854,11 @@ export const getAllOrderAdmin = async (req, res) => {
     const page = parseInt(req.query.page) || 1; // Current page, default is 1
     const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
     const searchTerm = req.query.search || ""; // Get search term from the query parameters
-    const statusFilter = req.query.status ? req.query.status.split(',') : []; // Get status filter from the query parameters and split into an array
-    const employeeId = req.query.employeeId ; // Get search term from the query parameters
-    const employee = req.query.employee; // Get search term from the query parameters
-    const type = req.query.type; // Get search term from the query parameters
+    const statusFilter = req.query.status ? req.query.status.split(',') : null; // Get status filter from the query parameters and split into an array
+    const employeeId = req.query.employeeId || null; // Get search term from the query parameters
+    const employee = req.query.employee || null; // Get search term from the query parameters
+const type = req.query.type ? req.query.type.split(',') : [];
+    const jobId = req.query.jobId || null; // Get search term from the query parameters
 
     const skip = (page - 1) * limit;
 
@@ -1872,12 +1873,24 @@ export const getAllOrderAdmin = async (req, res) => {
       ];
     }
     // Add status filter to the query if statusFilter is provided
-    if (statusFilter.length > 0) {
+    if (statusFilter && statusFilter.length > 0) {
       query.status = { $in: statusFilter }; // Use $in operator to match any of the values in the array
     }
-    if (employeeId.length > 0 && employeeId !== 'null') {
-      query.agentId = { $in: employeeId }; // Use $in operator to match any of the values in the array
-    }
+
+
+ if (employeeId && employeeId.length > 0 && employeeId !== 'null') {
+  query.$or = [
+    { agentId: { $in: employeeId } },
+    { bussId:  { $in: employeeId } },
+    { runnId:  { $in: employeeId } },
+    { sellId:  { $in: employeeId } },
+    { wareId:  { $in: employeeId } },
+  ];
+}
+
+  
+
+
     if(employee === "true"){
       query.agentId = { $ne: null }; // agentId should not be null
     }
@@ -1888,10 +1901,27 @@ export const getAllOrderAdmin = async (req, res) => {
     if (type.length > 0) {
       query.type = { $in: type }; // Use $in operator to match any of the values in the array
     }
+       // 🔍 jobId filter (matches users whose mId contains jobId)
+    if (jobId) {
+      const usersWithJobId = await userModel.find({ mId: jobId }, { _id: 1 });
+
+      if (!usersWithJobId.length) {
+        return res.status(404).json({
+          message: "No users found matching jobId",
+          success: false,
+        });
+      }
+
+      const userIds = usersWithJobId.map(u => u._id);
+      query.bussId = { $in: userIds }; // Apply to query
+     query.runnId = { $in: [null, undefined] };
+
+    }
+
     
     const total = await orderModel.countDocuments(query); // Count total documents matching the query
 
-    const Order = await orderModel
+    let orders  = await orderModel
       .find(query)
       .sort({ _id: -1 }) // Sort by _id in descending order
       .skip(skip)
@@ -1905,13 +1935,66 @@ export const getAllOrderAdmin = async (req, res) => {
         model: userModel,
         select: "username",
       }).populate({
-        path: "asignId",
+  path: "bussId",
+  model: userModel,
+  select: "username mId",
+  populate: {
+    path: "mId",
+    model: userModel, // replace with actual model for mId
+    select: "username", // fields you want from mId
+  },
+})
+.populate({
+        path: "runnId",
+        model: userModel,
+        select: "username",
+      }).populate({
+        path: "sellId",
+        model: userModel,
+        select: "username",
+      }).populate({
+        path: "wareId",
         model: userModel,
         select: "username",
       }).lean();
 
+ 
+  // if (jobId) {
+  //     const usersWithJobId = await userModel.find({ mId: jobId }, { _id: 1 });
+  //     const userIds = usersWithJobId[0]?._id?.toString();
 
-    if (!Order || Order.length === 0) { // Check if no users found
+  //     orders.filter(order => {
+  //       if (order.bussId && typeof order.bussId === "object") {
+ 
+  //         if(order.bussId.mId = userIds){
+  //          console.log(true)
+
+  //               return true; // Keep this order
+  //         }else{
+  //               return false; // Exclude others
+
+  //         }
+   
+  //        }
+  //     });
+
+  //     console.log(orders.length)
+ 
+  //   }
+
+
+// if (jobId) {
+//   const usersWithJobId = await userModel.find({ mId: jobId }, { _id: 1 });
+//   const userIds = usersWithJobId[0]?._id?.toString();
+
+//   orders = orders.filter(order => {
+//     return order.bussId && order.bussId.mId === userIds;
+//   });
+// }
+
+
+
+    if (!orders || orders.length === 0) { // Check if no users found
       return res.status(404).send({ // Send 404 Not Found response
         message: "No Order Found",
         success: false,
@@ -1920,11 +2003,11 @@ export const getAllOrderAdmin = async (req, res) => {
 
     return res.status(200).send({ // Send successful response
       message: "All Order list",
-      Count: Order.length,
+      Count: orders.length,
       currentPage: page,
       totalPages: Math.ceil(total / limit),
       success: true,
-      Order, // Return users array
+      Order:orders , // Return users array
     });
   } catch (error) {
     return res.status(500).send({ // Send 500 Internal Server Error response
@@ -1936,6 +2019,139 @@ export const getAllOrderAdmin = async (req, res) => {
 
 
 };
+ 
+
+export const EmployeeAcceptOrderControllerAdmin = async (req, res) => {
+  const { UserId, OrderId } = req.body;
+
+  console.log('UserId, OrderId',UserId, OrderId)
+  if (!UserId || !OrderId) {
+    return res
+      .status(400)
+      .json({ message: "UserId and OrderId are required", success: false });
+  }
+
+  try {
+    // Find the lead by leadId
+    const Order = await orderModel.findById(OrderId);
+
+    if (!Order) {
+      return res
+        .status(404)
+        .json({ message: "Lead not found", success: false });
+    }
+
+   // Check if order is already accepted
+    if (Order.runnId) {
+      if (Order.runnId.toString() === UserId) {
+        return res
+          .status(400)
+          .json({ message: "You have already accepted this order", success: false });
+      }
+
+      return res
+        .status(400)
+        .json({ message: "Order already accepted by another agent", success: false });
+    }
+
+    // Assign agent to the order
+    Order.runnId = UserId;
+    
+
+    // if (Order.count < Order.agentId.length + 1) {
+    //   return res.status(400).json({
+    //     message: "Cannot add more UserId, limit reached",
+    //     success: false,
+    //   });
+    // }
+
+    // Update user wallet
+
+//     const user = await userModel.findById(UserId);
+
+// const home = await homeModel.find();
+
+
+//     // if (user.status === 2) {
+//     //   return res.status(400).json({
+//     //     message: "Account Suspended",
+//     //     success: false,
+//     //   });
+//     // }
+//   const amount = Math.round((Order.totalAmount * home[0].commission) / 100);
+
+  
+//         if (user.wallet < amount || user.wallet === amount) {
+//       if (user.wallet === amount) {
+//       } else {
+//         return res.status(400).json({
+//           message: "You do not have enough funds to accept this lead",
+//           success: false,
+//         });
+//       }
+//     }
+
+//      user.wallet -= amount;
+  
+//        console.log('Commission Percentage:', amount + '%');
+//   console.log('Total Amount:', Order.totalAmount);
+//   console.log('Commission:', home[0].commission);
+
+
+//     // for create trasaction id
+  
+//     const lastTrans = await transactionModel
+//       .findOne()
+//       .sort({ _id: -1 })
+//       .limit(1);
+//     let lastTransId;
+
+//     if (lastTrans) {
+//       // Convert lastOrder.orderId to a number before adding 1
+//       const lastOrderId = parseInt(lastTrans.t_no || 0);
+//       lastTransId = lastOrderId + 1;
+//     } else {
+//       lastTransId = 1;
+//     }
+
+//     // Calculate the auto-increment ID
+//     const t_id = "tt00" + lastTransId;
+
+//     // Create a new transaction
+//     const transaction = new transactionModel({
+//       userId: UserId, // Use BuyId instead of lead.BuyId
+//       type: 1,
+//       note: `Order Id #${Order?.orderId} Purchase by user`,
+//       amount: -amount,
+//       t_id,
+//       t_no: lastTransId,
+//     });
+
+
+//     await Promise.all([
+//      transaction.save(),
+//        Order.save(),
+//       user.save(), 
+//     ]);
+
+    Order.save();
+
+    return res.status(200).json({
+      message: "Accept Job successfully",
+      success: true,
+      
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: `Error occurred during processing: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
 
 
 
@@ -2031,18 +2247,19 @@ export const AdminGetAllEmployee_old = async (req, res) => {
 export const AdminGetAllEmployee = async (req, res) => { 
   try {
     // Extract the category (which can be an array of ObjectIds), type, and coordinates from query parameters
-    const { category, type, longitude, latitude } = req.query;
+    const { category, type,empType, longitude, latitude } = req.query;
 
-    if (!category || !type || !longitude || !latitude) {
-      return res.status(200).send({
-        message: 'Missing required parameters.',
-        success: false,
-      });
-    }
-
+    
     // Build the filter object
-    const filter = { type };  // Only fetch employees with the type (assuming "employee")
+    const filter = { type,empType };  // Only fetch employees with the type (assuming "employee")
 
+     if(type){
+       filter.type = { $in:  type } 
+     }
+     if(empType){
+       filter.empType = { $in:  empType }
+     }
+     
     // Check if 'category' (which is an array of ObjectIds) is passed
     if (category) {
       // Ensure the category is an array
@@ -2102,7 +2319,7 @@ export const AdminGetAllEmployee = async (req, res) => {
 export const editOrderEmployeeAdmin = async (req, res) => {
   try {
     const { id } = req.params;
-    const { agentId ,asignId } = req.body;
+    const { agentId ,asignId ,bussId,runnId,sellId,wareId} = req.body;
 
 
     const order = await orderModel.findById(id);
@@ -2118,13 +2335,21 @@ export const editOrderEmployeeAdmin = async (req, res) => {
       order.agentId = agentId;
     }else if(asignId){
       order.asignId = asignId;
+    }else if(bussId){
+       order.bussId = bussId;
+    }else if(runnId){
+       order.runnId = runnId;
+    }else if(sellId){
+       order.sellId = sellId;
+    }else if(wareId){
+      order.wareId = wareId;
     }
 
     await order.save();
 
     // Fetch the updated order to confirm the change
     const updatedOrder = await orderModel.findById(id);
-    console.log(`Updated agentId: ${updatedOrder.agentId}`);
+    console.log(`Updated agentId: ${updatedOrder}`);
 
     return res.status(200).json({
       message: "Order Updated!",
@@ -2598,6 +2823,78 @@ export const getAllUserAdmin = async (req, res) => {
     });
   }
 };
+
+ 
+export const getMYUserAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const searchTerm = req.query.search || "";
+    const userId = req.query.userId;
+
+    // Validate userId
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({
+        message: "Invalid or missing userId",
+        success: false,
+      });
+    }
+
+    // Find the user by ID and populate mId
+    const user = await userModel.findById(userId).populate("mId").lean();
+
+    if (!user) {
+      return res.status(404).send({
+        message: "User not found",
+        success: false,
+      });
+    }
+
+    // Get the users in mId array (populated)
+    let users = user.mId || [];
+
+    // Apply search filter if needed
+    if (searchTerm) {
+      const regex = new RegExp(searchTerm, "i");
+      users = users.filter((u) =>
+        regex.test(u.username || "") ||
+        regex.test(u.email || "") ||
+        regex.test(u.phone || "")
+      );
+    }
+
+    const totalUser = users.length;
+
+    // Paginate the results manually
+    const startIndex = (page - 1) * limit;
+    const paginatedUsers = users.slice(startIndex, startIndex + limit);
+
+    if (paginatedUsers.length === 0) {
+      return res.status(404).send({
+        message: "No users found",
+        success: false,
+      });
+    }
+
+    return res.status(200).send({
+      message: "User list from mId",
+      userCount: paginatedUsers.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalUser / limit),
+      success: true,
+      users: paginatedUsers,
+    });
+
+  } catch (error) {
+    return res.status(500).send({
+      message: `Error while getting users: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
 
 export const editUserAdmin = async (req, res) => {
   try {

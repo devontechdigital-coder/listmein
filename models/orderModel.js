@@ -99,12 +99,27 @@ const orderSchema = mongoose.Schema({
         ref: "User",
       },
 
-    asignId: {
+    bussId: {
         // Changed field name to plural and set type as an array of ObjectIds
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
       },
 
+        runnId: {
+        // Changed field name to plural and set type as an array of ObjectIds
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      sellId: {
+        // Changed field name to plural and set type as an array of ObjectIds
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      wareId: {
+        // Changed field name to plural and set type as an array of ObjectIds
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
       longitude: {
         type: String,
       },

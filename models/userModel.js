@@ -21,6 +21,9 @@ const userSchema = mongoose.Schema({
   type: {
     type: Number,
   },
+    empType: {
+    type: Number,
+  },
   token: {
     type: String,
   },
@@ -118,7 +121,11 @@ const userSchema = mongoose.Schema({
   },
    images: {
             type: Array,
-        },
+  },
+  mId: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User', // Reference to the User model for the sender
+  }]
 },
   { timestamps: true }
 );

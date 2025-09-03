@@ -380,6 +380,7 @@ export const SignupUserType = async (req, res) => {
   try {
     const {
       type,
+      empType,
       username,
       phone,
       email,
@@ -392,10 +393,13 @@ export const SignupUserType = async (req, res) => {
       DOB,
       address,
       city,
-      coverage
+      coverage,
+      longitude,
+      latitude,
+      mId,
     } = req.body;
 
-
+ 
     // const {
     //   profile,
 
@@ -417,6 +421,7 @@ export const SignupUserType = async (req, res) => {
       userId = 1;
     }
 
+ 
     const newUser = new userModel({
       type,
       username,
@@ -433,7 +438,19 @@ export const SignupUserType = async (req, res) => {
       city,
       coverage,
       userId,
+      empType,
+      longitude,
+      latitude
     });
+
+if (mId) {
+  const superUser = await userModel.findById(mId);
+  if (superUser) {
+    superUser.mId.push(newUser._id);
+    await superUser.save();
+  }
+}
+
 
     await newUser.save();
     res.status(201).json({
@@ -986,7 +1003,7 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
     status,
     totalAmount,
     userId,
-    verified,
+    verified,longitude,latitude
   } = req.body;
 
   try {
@@ -1060,6 +1077,8 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
       orderId: order_id,
       razorpay_order_id: order.id,
       payment:0,
+      longitude,
+      latitude
     });
 
     await newOrder.save({ session });
@@ -1154,6 +1173,25 @@ export const updateUserAndCreateOrderController_old = async (req, res) => {
   }
 };
 
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // metres
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  const d = R * c; // in metres
+  return d;
+}
+
+
+
 export const updateUserAndCreateOrderController = async (req, res) => {
   // let session;
   // let transactionInProgress = false;
@@ -1176,7 +1214,7 @@ export const updateUserAndCreateOrderController = async (req, res) => {
     status,
     totalAmount,
     userId,
-    verified,
+    verified,longitude,latitude
   } = req.body;
 
   try {
@@ -1238,6 +1276,85 @@ export const updateUserAndCreateOrderController = async (req, res) => {
     const lastOrder = await orderModel.findOne().sort({ _id: -1 }).limit(1);
     let order_id = lastOrder ? parseInt(lastOrder.orderId) + 1 : 1;
 
+    let nearestWarehouse = null;
+let minDistance = Infinity;
+// for wearhouse logic 
+
+    let nearestBussWarehouse = null;
+let minBussDistance = Infinity;
+// for wearhouse logic 
+
+    const ware = await userModel.find({
+    type: 5, // Assuming type: 3 is warehouse
+    pincode 
+  });
+
+ const buss = await userModel.find({
+  coverage: { $in: [String(pincode)] }
+  })
+
+  
+if (latitude && longitude) {
+
+  if(ware){
+ 
+  for (const warehouse of ware) {
+    const distance = getDistance(
+      parseFloat(latitude),
+      parseFloat(longitude),
+      parseFloat(warehouse.latitude),
+      parseFloat(warehouse.longitude)
+    );
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearestWarehouse = warehouse;
+    }
+  }
+  }else{
+ const warehouses = await userModel.find({
+    type: 3, // Assuming type: 3 is warehouse
+    latitude: { $ne: null },
+    longitude: { $ne: null }
+  });
+
+  for (const warehouse of warehouses) {
+    const distance = getDistance(
+      parseFloat(latitude),
+      parseFloat(longitude),
+      parseFloat(warehouse.latitude),
+      parseFloat(warehouse.longitude)
+    );
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearestWarehouse = warehouse;
+    }
+  }
+  }
+  
+
+  
+
+    //  return res.status(404).json({
+    //     success: false,
+    //     message: "Order created successfully",
+    //    wareId,
+    //    minDistance,
+    //    bussId,
+    //    pincode,
+    //   });
+
+
+
+}
+
+
+   const wareId = nearestWarehouse ? nearestWarehouse._id : null;
+const bussId = buss[0] ? buss[0]._id : null;
+
+
+
     // Create new order
     const newOrder = new orderModel({
       details,
@@ -1253,7 +1370,9 @@ export const updateUserAndCreateOrderController = async (req, res) => {
       orderId: order_id,
       // type:2,
     razorpay_order_id: order.id,
-      payment:0,
+      payment:0,longitude,latitude,
+      wareId,
+      bussId
     });
 
 await newOrder.save();
@@ -1340,6 +1459,51 @@ await newOrder.save();
       error: error.message,
     });
   }  
+};
+
+
+
+export const editFullOrderAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items, details, status } = req.body;
+
+    console.log("req.body:", req.body);
+
+    const order = await orderModel.findById(id);
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found",
+        success: false,
+      });
+    }
+
+    // ✅ Update status
+    if (status !== undefined) {
+      order.status = status;
+    }
+ // ✅ Update status
+    if (items !== undefined) {
+      order.items = items;
+    } // ✅ Update status
+    if (details !== undefined) {
+      order.details = details;
+    }
+   
+    await order.save();
+
+    return res.status(200).json({
+      message: "Order Updated!",
+      success: true,
+      order,
+    });
+  } catch (error) {
+    console.error("Update error:", error);
+    return res.status(500).json({
+      message: `Error while updating Order: ${error.message}`,
+      success: false,
+    });
+  }
 };
 
 
@@ -5330,6 +5494,7 @@ export const AuthUserByID = async (req, res) => {
           phone: existingUser.phone,
           email: existingUser.email,
           type: existingUser.type,
+          empType: existingUser.empType,
           state: existingUser.state,
           statename: existingUser.statename,
           city: existingUser.city,
@@ -5351,7 +5516,8 @@ export const AuthUserByID = async (req, res) => {
           images: existingUser.images,
           call: existingUser.call,
           whatsapp: existingUser.whatsapp,
-establishment: existingUser.establishment,
+          establishment: existingUser.establishment,
+          mId: existingUser.mId,
         },
       });
 
