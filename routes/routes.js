@@ -409,7 +409,7 @@ router.put(
   updateVendorProfileUser
 );
 
-router.put(
+router.post(
   "/create-user-vendor/:id",
   profileVendorImage,
   CreateVendorProfileUser

@@ -7786,7 +7786,7 @@ export const CreateVendorProfileUser = async (req, res) => {
       city,
       confirm_password,
       about,
-      department, coverage, gallery,images,whatsapp,call,establishment
+      department, coverage, gallery,images,whatsapp,call,establishment,empType
     } = req.body;
     console.log("Uploaded files:", req.files);
 
@@ -7811,7 +7811,7 @@ export const CreateVendorProfileUser = async (req, res) => {
       about,
       department,
       coverage,
-      gallery,images,whatsapp,call,establishment,type:3
+      gallery,images,whatsapp,call,establishment,type:3,empType
     };
 
   
