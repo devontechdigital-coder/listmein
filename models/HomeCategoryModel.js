@@ -1,27 +1,23 @@
 import mongoose from "mongoose";
 
-const categorySchema = new mongoose.Schema(
+const homeCategorySchema = new mongoose.Schema(
   {
     title: {
       type: String,
       require: [true, "title is required"],
     },
-    slide_head: {
-      type: String,
-    },
+     
     icon_image: {
       type: String,
     },
-    slide_para: {
+     para: {
       type: String,
-    },
-    image: {
-      type: String,
-    },
+    }, 
     slug: {
       type: String,
       unique: true,
     },
+
     description: {
       type: String,
     },
@@ -34,36 +30,35 @@ const categorySchema = new mongoose.Schema(
     metaKeywords: {
       type: String,
     },
-    status: {
-      type: String,
-      default: "true",
-    },
-    filter: {
-      type: Number,
-      default: 1,
-    },
-    type: {
+     price: {
       type: Number,
       default: 0,
-    },
-    specifications: {
-      type: Object,
-      default: {
-        specifications: [],
-      },
-    },
+     },
+    status: {
+      type: Number,
+      default: 1,
+     },
+    auth: {
+      type: Number,
+      default: 0,
+    }, 
+     link: {
+      type: String,
+     }, 
+    authLink: {
+      type: String,
+     }, 
     parent: {
       type: mongoose.Types.ObjectId,
-      ref: "category", // Reference to the same "Category" model
+      ref: "home_category", // Reference to the same "Category" model
     },
-    canonical: {
-      type: String,
-    },
-
+     faqs: {
+            type: Array,
+    }
   },
   { timestamps: true }
 );
 
-const categoryModel = mongoose.model("category", categorySchema);
+const HomeCategoryModel = mongoose.model("home_category", homeCategorySchema);
 
-export default categoryModel;
+export default HomeCategoryModel;

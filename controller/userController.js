@@ -41,6 +41,7 @@ import { exec } from "child_process";
 import util from "util";
 import crypto from "crypto";  // Ensure you require the crypto module if you haven't
 import razorpay from "razorpay";
+import HomeCategoryModel from "../models/HomeCategoryModel.js";
 
 const execPromise = util.promisify(exec);
 
@@ -774,6 +775,56 @@ export const UsergetAllCategories = async (req, res) => {
     });
   }
 };
+
+
+export const UsergetAllHomeCategories = async (req, res) => {
+  try {
+const { id = null, home = null, cid = null } = req.query;
+
+    // Build the query
+    const query = { status: 1 };
+    
+    if (id) {
+      query._id = { $ne: id }; // Exclude this category
+    }
+
+    if (home === "true") {
+      if (cid) {
+        // Either parent == cid OR parent != cid and not null/empty
+        query.$or = [
+          { parent: cid },
+         ];
+      } else {
+        // Only top-level categories
+        query.parent = null;
+      }
+    }
+
+
+    const categories = await HomeCategoryModel.find(query);
+
+    if (!categories || categories.length === 0) {
+      return res.status(200).send({
+        message: "No Category Found",
+        success: false,
+      });
+    }
+
+    return res.status(200).send({
+      message: "All Category List",
+      catCount: categories.length,
+      success: true,
+      categories,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: `Error while getting all categories: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
 
 export const UsergetAllProducts = async (req, res) => {
   try {
@@ -5518,6 +5569,7 @@ export const AuthUserByID = async (req, res) => {
           whatsapp: existingUser.whatsapp,
           establishment: existingUser.establishment,
           mId: existingUser.mId,
+          dynamicUsers: existingUser.dynamicUsers,
         },
       });
 
@@ -7704,7 +7756,7 @@ export const updateVendorProfileUser = async (req, res) => {
       city,
       confirm_password,
       about,
-      department, coverage, gallery,images,whatsapp,call,establishment
+      department, coverage, gallery,images,whatsapp,call,establishment,dynamicUsers
     } = req.body;
     console.log("Uploaded files:", req.files);
 
@@ -7728,7 +7780,7 @@ export const updateVendorProfileUser = async (req, res) => {
       about,
       department,
       coverage,
-      gallery,images,whatsapp,call,establishment
+      gallery,images,whatsapp,call,establishment,dynamicUsers
     };
 
     if(olduser.email !== email){
@@ -7852,7 +7904,7 @@ await newUser.save();
 };
 
 
-export const getCategoriesWithProducts = async (req, res) => {
+export const getCategoriesWithProducts_6sep_2025 = async (req, res) => {
   try {
     // Get query parameters for filtering
     const { location =  '' } = req.query;
@@ -7954,6 +8006,101 @@ export const getCategoriesWithProducts = async (req, res) => {
     });
   }
 }
+
+export const getCategoriesWithProducts = async (req, res) => {
+  try {
+    // Get and process the location filter
+    let { location = '' } = req.query;
+    const locationParts = location.split(',').map(part => part.trim()).filter(Boolean);
+    const primaryLocation = locationParts[0] || '';
+    const secondaryLocation = locationParts[1] || '';
+
+    // Fetch all categories
+    const categories = await categoryModel.find({}).exec();
+
+    // Fetch products for each category
+    const categoriesWithProducts = await Promise.all(categories.map(async (category) => {
+
+      // Helper function to build the product query pipeline
+      const buildProductQuery = (loc) => [
+        {
+          $match: {
+            Category: category._id,
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'userId',
+            foreignField: '_id',
+            as: 'userDetails',
+          }
+        },
+        { $unwind: '$userDetails' },
+        {
+          $match: {
+            ...(loc && {
+              'userDetails.coverage': {
+                $elemMatch: {
+                  $regex: new RegExp(`^${loc}$`, 'i')
+                }
+              }
+            }),
+          }
+        },
+        { $limit: 20 },
+        {
+          $project: {
+            title: 1,
+            description: 1,
+            pImage: 1,
+            userId: 1,
+            Category: 1,
+            slug: 1,
+            features: 1,
+            salePrice: 1,
+            regularPrice: 1,
+           
+             gst: 1,
+             stock: 1,
+          }
+        }
+      ];
+
+      // First try with the primary location
+      let products = await productModel.aggregate(buildProductQuery(primaryLocation));
+
+      // If no products found, try secondary location (if available)
+      if (products.length === 0 && secondaryLocation) {
+        products = await productModel.aggregate(buildProductQuery(secondaryLocation));
+      }
+
+      // Attach products to category if any
+      if (products.length === 0) return null;
+
+      const categoryObject = category.toObject();
+      return {
+        ...categoryObject,
+        products,
+      };
+    }));
+
+    // Filter out categories with no matching products
+    const filteredCategories = categoriesWithProducts.filter(category => category !== null);
+
+    return res.status(200).send({
+      message: "Categories and Products fetched successfully",
+      success: true,
+      categoriesWithProducts: filteredCategories,
+    });
+
+  } catch (error) {
+    return res.status(500).send({
+      success: false,
+      message: `Error: ${error.message}`,
+    });
+  }
+};
 
  
 export const getCategoriesWithSubcategory = async (req, res) => {

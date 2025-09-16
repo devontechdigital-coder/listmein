@@ -1,7 +1,7 @@
 import express from "express";
 import {
-  UserloginAll, SignupAdmin, Adminlogin, getAllGalleryController, deleteGalleryController, AddAdminBlogController, AdmindeleteBlogController, AddAdminCategoryController
-  , getAllReviewsAdmin, AdmingetAllCategories, AddAdminProduct, getAllcategoryFillAdmin, updateCategoryAdmin, getCategoryIdAdmin, deleteCategoryAdmin, getAllProductFillAdmin, updateProductAdmin, getProductIdAdmin, deleteProductAdmin,
+  UserloginAll, SignupAdmin, Adminlogin, getAllGalleryController, deleteGalleryController, AddAdminBlogController, AdmindeleteBlogController, AddAdminCategoryController,AddAdminHomeCategoryController,
+ getAllReviewsAdmin, AdmingetAllCategories, AddAdminProduct, getAllcategoryFillAdmin,getAllHomeCategoryFillAdmin, updateCategoryAdmin, updateHomeCategoryAdmin, getCategoryIdAdmin, deleteCategoryAdmin,  getHomeCategoryIdAdmin, deleteHomeCategoryAdmin, getAllProductFillAdmin, updateProductAdmin, getProductIdAdmin, deleteProductAdmin,
   AddAdminPromoController, getAllPromoAdmin, updatePromoAdmin, getPromoIdAdmin, deletePromoAdmin
   , getAllEnquireAdmin, ChangePassAdmin, ForgotAdminPassword, editOrderAdmin, editLeadStatusAdmin,deleteOrderAdmin, AddAdminPageController, getAllPageAdmin, updatePageAdmin, getPageIdAdmin, deletePageAdmin, getAllBlogAdmin, exportAllProAdmin, importAllProAdmin,editOrderEmployeeAdmin, AdminGetAllEmployee, getMYUserAdmin,getAllUserAdmin, AddAdminTaxController, getAllTaxAdmin, updateTaxAdmin, getTaxIdAdmin, deleteTaxAdmin, ViewAllAdminZones, AddAdminZonesController, getAllZonesAdmin, updateZonesAdmin, getZonesIdAdmin, deleteZonesAdmin, GetImageAdmin, deleteFolderAdmin, UpdateFolderAdmin, getUserIdAdmin, GetFolderIDAdmin, AddAdminFolderController, GetFolderAdmin, editUserAdmin, AddAdminAttributeController, deleteRatingAdmin, editReviewAdmin, getAllOrderAdmin, getAllAttributeFillAdmin, updateAttributeAdmin, getAttributeIdAdmin, deleteAttributeAdmin, getAllAttribute, AddAdminTagController, getAllTagFillAdmin, updateTagAdmin, getTagIdAdmin, deleteTagAdmin, getAllTag, editHomeData, editHomeLayoutData,
   AddPlanCategoryController, getAllPlanCategoryAdmin, AddPlanController, getAllPlanAdmin, getPlanIdAdmin, updatePlanAdmin, deletePlanAdmin, AddAdminDepartmentController,
@@ -14,7 +14,7 @@ import {
 import {
   getCategoriesWithProducts ,getCategoriesWithSubcategory,getCategoriesWithProductsByID,getProductDeepSearch,getSellerDeepSearch, AddCart, contactEnquire, razorpayCallback, UpdateCart, getCart, userTokenController, userBlogsController, Userlogin, SignupUser, getAllBlogsController, createBlogController,
   LoginAndVerifyOTP, updateBlogController, deleteBlogController, getBlogIdController, CreateChatController, findUserschatController, findchatController
-  , EmailVerify, postman, PaymentResponse, PaymentRequest, getProductsByFilterUser, cancelOrderUser, ViewAllZones, ViewAllZonesOnly,getProductsByHSN, AuthUserByID, updateProfileUser, SignupNewUser, LoginUserWithOTP, LoginUserWithPass, SendOTP,SignupLoginNew, SignupLoginUser, getTaxIdUser, ViewAllUserTaxes, ViewCompareByUser, applyPromoCode, getHomeLayoutData, AddWishListByUser, deleteCompareByUser, deleteWishListByUser, ViewWishListByUser, AddCompareByUser,ViewVendorRating, ViewProductRating, ViewCategoryRating,AddVendorRating, AddRating, UsergetAllCategories, UsergetAllProducts, UsergetAllHomeProducts,FullOrdersViewController, userOrdersViewController, getAllAttributeUser, getProductIdUser, updateUserController, createOrderController, updateUserAndCreateOrderController, userOrdersController, getHomeData, GetAllCategoriesByParentIdController, GetAllCategoriesBySlugController
+  , EmailVerify, postman, PaymentResponse, PaymentRequest, getProductsByFilterUser, cancelOrderUser, ViewAllZones, ViewAllZonesOnly,getProductsByHSN, AuthUserByID, updateProfileUser, SignupNewUser, LoginUserWithOTP, LoginUserWithPass, SendOTP,SignupLoginNew, SignupLoginUser, getTaxIdUser, ViewAllUserTaxes, ViewCompareByUser, applyPromoCode, getHomeLayoutData, AddWishListByUser, deleteCompareByUser, deleteWishListByUser, ViewWishListByUser, AddCompareByUser,ViewVendorRating, ViewProductRating, ViewCategoryRating,AddVendorRating, AddRating, UsergetAllCategories,UsergetAllHomeCategories, UsergetAllProducts, UsergetAllHomeProducts,FullOrdersViewController, userOrdersViewController, getAllAttributeUser, getProductIdUser, updateUserController, createOrderController, updateUserAndCreateOrderController, userOrdersController, getHomeData, GetAllCategoriesByParentIdController, GetAllCategoriesBySlugController
   , BuyPlanUser, GetPlanUser, HomeSendEnquire,contactSendEnquire,HomeSendEnquireCatgeory, getAllPlanCategoryController, uploadDataZone, deleteAllZones, SignupUserType, updateDetailsUser, updateDetailsUserHealth, getAllPlanUser, getProductIdUserBySlug
   , getAllVendor, getAllDepartment, profileVendorImage, ApiGetKey, PaymentSuccess, PaymentFail,
   updateVendorProfileUser, editFullOrderAdmin,OrderPaymentVerification,CreateVendorProfileUser,paymentVerification, BuyPlanAddUser, BuyPlanByUser, PayuHash, userPlanIdController,ViewAllZonesCategory, ViewAllZonesDepartment, getVendorById, HomeSendvendorEnquire, ApplyEnquireStatus, SenderEnquireStatus, AllPayment, downloadUserInvoice, checkUserPlan, GetWebsiteData, GetWebsiteData_old
@@ -52,6 +52,15 @@ router.get('/admin/all-category-fillter', getAllcategoryFillAdmin);
 router.get('/admin/get-category/:id', getCategoryIdAdmin);
 router.put('/admin/update-category/:id', updateCategoryAdmin);
 router.delete('/admin/delete-category/:id', deleteCategoryAdmin);
+
+
+router.post('/admin/add-home-category', AddAdminHomeCategoryController);
+router.get('/admin/all-home-category-fillter', getAllHomeCategoryFillAdmin);
+router.get('/admin/get-home-category/:id', getHomeCategoryIdAdmin);
+router.put('/admin/update-home-category/:id', updateHomeCategoryAdmin);
+router.delete('/admin/delete-home-category/:id', deleteHomeCategoryAdmin);
+router.get('/all-home-category', UsergetAllHomeCategories);
+
 
 router.post('/admin/add-product', AddAdminProduct);
 router.get('/admin/all-product-fillter', getAllProductFillAdmin);

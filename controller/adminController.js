@@ -41,6 +41,7 @@ import departmentsModel from "../models/departmentsModel.js";
 import buyPlanModel from "../models/buyPlanModel.js";
 import mongoose from 'mongoose';
 import geolib from 'geolib';
+import HomeCategoryModel from "../models/HomeCategoryModel.js";
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -516,7 +517,7 @@ export const AddAdminCategoryController = async (req, res) => {
       status,
       slide_head,
       slide_para,
-      specifications, canonical
+      specifications, canonical,type
     } = req.body;
 
     // Validation
@@ -540,7 +541,7 @@ export const AddAdminCategoryController = async (req, res) => {
       metaKeywords,
       parent,
       status,
-      specifications, canonical
+      specifications, canonical,type
     });
     await newCategory.save();
 
@@ -799,7 +800,7 @@ export const updateCategoryAdmin = async (req, res) => {
       metaDescription,
       metaKeywords,
       parent,
-      status, specifications, canonical, icon_image
+      status, specifications, canonical, icon_image,type
     } = req.body;
 
     let updateFields = {
@@ -813,7 +814,7 @@ export const updateCategoryAdmin = async (req, res) => {
       metaDescription,
       metaKeywords,
       parent,
-      status, specifications, canonical, icon_image
+      status, specifications, canonical, icon_image,type
     };
 
     const Category = await categoryModel.findByIdAndUpdate(id, updateFields, {
@@ -875,6 +876,174 @@ export const deleteCategoryAdmin = async (req, res) => {
     });
   }
 };
+
+
+// for home category 
+
+export const AddAdminHomeCategoryController = async (req, res) => {
+  try {
+    const {
+       title, icon_image, para, slug, description, metaTitle, 
+ metaDescription, metaKeywords, status,auth,link,authLink, parent
+    } = req.body;
+
+    // Validation
+    if (!title || !slug) {
+      return res.status(400).send({
+        success: false,
+        message: "Please Provide All Fields",
+      });
+    }
+
+    // Create a new category with the specified parent
+    const newCategory = new HomeCategoryModel({
+    title, icon_image, para, slug, description, metaTitle, 
+ metaDescription, metaKeywords, status,auth,link,authLink, parent
+    });
+    await newCategory.save();
+
+    return res.status(201).send({
+      success: true,
+      message: "Home Category Created!",
+      newCategory,
+    });
+  } catch (error) {
+    console.error("Error while creating category:", error);
+    return res.status(400).send({
+      success: false,
+      message: "Error While Creating Category",
+      error,
+    });
+  }
+};
+
+
+export const getAllHomeCategoryFillAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1; // Current page, default is 1
+    const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
+    const searchTerm = req.query.search || ""; // Get search term from the query parameters
+
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (searchTerm) {
+      // If search term is provided, add it to the query
+      query.$or = [
+        { title: { $regex: searchTerm, $options: "i" } }, // Case-insensitive username search
+        { slug: { $regex: searchTerm, $options: "i" } }, // Case-insensitive email search
+      ];
+    }
+
+    const totalCategory = await HomeCategoryModel.countDocuments();
+
+    const Category = await HomeCategoryModel
+      .find(query)
+      .sort({ _id: -1 }) // Sort by _id in descending order
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (!Category) {
+      return res.status(200).send({
+        message: "NO home category found",
+        success: false,
+      });
+    }
+    return res.status(200).send({
+      message: "All home category list ",
+      CategoryCount: Category.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalCategory / limit),
+      success: true,
+      Category,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: `Error while getting category ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const updateHomeCategoryAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+     title, icon_image, para, slug, description, metaTitle, 
+ metaDescription, metaKeywords, status,auth,link,authLink, parent,price,faqs,heading,mission,vision
+    } = req.body;
+     
+    let updateFields = {
+        title, icon_image, para, slug, description, metaTitle, 
+ metaDescription, metaKeywords, status,auth,link,authLink, parent,price,faqs,heading,mission,vision
+    };
+
+    const Category = await HomeCategoryModel.findByIdAndUpdate(id, updateFields, {
+      new: true,
+    });
+
+    return res.status(200).json({
+      message: "Category Updated!",
+      success: true,
+      Category,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while updating Category: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const getHomeCategoryIdAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const Category = await HomeCategoryModel.findById(id);
+    if (!Category) {
+      return res.status(200).send({
+        message: "Category Not Found By Id",
+        success: false,
+      });
+    }
+    return res.status(200).json({
+      message: "fetch Single Category!",
+      success: true,
+      Category,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while get Category: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const deleteHomeCategoryAdmin = async (req, res) => {
+  try {
+    await HomeCategoryModel.findByIdAndDelete(req.params.id);
+
+    return res.status(200).send({
+      success: true,
+      message: "Home Category Deleted!",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      success: false,
+      message: "Erorr WHile Home Category",
+      error,
+    });
+  }
+};
+
+
+
+// for product 
 
 export const AddAdminProduct = async (req, res) => {
   try {

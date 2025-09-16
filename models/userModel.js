@@ -122,6 +122,10 @@ const userSchema = mongoose.Schema({
    images: {
             type: Array,
   },
+   dynamicUsers: {
+            type: Array,
+  },
+  
   mId: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User', // Reference to the User model for the sender
