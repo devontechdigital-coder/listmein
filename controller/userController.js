@@ -8007,16 +8007,16 @@ export const getCategoriesWithProducts_6sep_2025 = async (req, res) => {
   }
 }
 
-export const getCategoriesWithProducts = async (req, res) => {
+export const getCategoriesWithProducts_16sep_2025 = async (req, res) => {
   try {
     // Get and process the location filter
-    let { location = '' } = req.query;
+    let { location = '' , productId = null } = req.query;
     const locationParts = location.split(',').map(part => part.trim()).filter(Boolean);
     const primaryLocation = locationParts[0] || '';
     const secondaryLocation = locationParts[1] || '';
 
     // Fetch all categories
-    const categories = await categoryModel.find({}).exec();
+const categories = await categoryModel.find({ type: 1, parent: null }).exec();
 
     // Fetch products for each category
     const categoriesWithProducts = await Promise.all(categories.map(async (category) => {
@@ -8094,6 +8094,126 @@ export const getCategoriesWithProducts = async (req, res) => {
       categoriesWithProducts: filteredCategories,
     });
 
+  } catch (error) {
+    return res.status(500).send({
+      success: false,
+      message: `Error: ${error.message}`,
+    });
+  }
+};
+
+export const getCategoriesWithProducts = async (req, res) => {
+  try {
+    let { location = '', catId = null } = req.query;
+
+    const locationParts = location.split(',').map(part => part.trim()).filter(Boolean);
+    const primaryLocation = locationParts[0] || '';
+    const secondaryLocation = locationParts[1] || '';
+
+// Fetch all top-level categories with type 1
+let categories = [];
+
+if (catId) {
+  const category = await categoryModel.findOne({ slug: String(catId).toLowerCase() }).exec();
+
+  if (category) {
+    categories.push(category); // Add the matched category
+  }
+
+  let parent = category.parent;
+  if(!category.parent){
+     parent = category._id;
+  }
+  // Optionally, you can also fetch all other categories (with blank products later)
+  const otherCategories = await categoryModel.find({ 
+    type: 1, 
+  parent: { $ne: null, $eq: parent } , // Ensures parent is not null AND matches
+    _id: { $ne: category._id }  // Exclude the current category
+
+  });
+
+    categories = [...categories, ...otherCategories];
+ 
+} else {
+  categories = await categoryModel.find({ type: 1, parent: null }).exec();
+}
+
+
+    // Fetch products for each category
+    const categoriesWithProducts = await Promise.all(
+      categories.map(async (category) => {
+const isTargetCategory = !catId || String(category.slug).toLowerCase() === String(catId).toLowerCase();
+
+        // Helper function to build the product query pipeline
+        const buildProductQuery = (loc) => [
+          {
+            $match: {
+              Category: category._id,
+            },
+          },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'userId',
+              foreignField: '_id',
+              as: 'userDetails',
+            },
+          },
+          { $unwind: '$userDetails' },
+          {
+            $match: {
+              ...(loc && {
+                'userDetails.coverage': {
+                  $elemMatch: {
+                    $regex: new RegExp(`^${loc}$`, 'i'),
+                  },
+                },
+              }),
+            },
+          },
+          { $limit: 20 },
+          {
+            $project: {
+              title: 1,
+              description: 1,
+              pImage: 1,
+              userId: 1,
+              Category: 1,
+              slug: 1,
+              features: 1,
+              salePrice: 1,
+              regularPrice: 1,
+              gst: 1,
+              stock: 1,
+            },
+          },
+        ];
+
+        let products = [];
+
+        if (isTargetCategory) {
+          // First try with primary location
+          products = await productModel.aggregate(buildProductQuery(primaryLocation));
+
+          // If no products found, try secondary location
+          if (products.length === 0 && secondaryLocation) {
+            products = await productModel.aggregate(buildProductQuery(secondaryLocation));
+          }
+        }
+
+        const categoryObject = category.toObject();
+        return {
+          ...categoryObject,
+          products, // either actual products or empty []
+        };
+      })
+    );
+
+    return res.status(200).send({
+      message: 'Categories and Products fetched successfully',
+      success: true,
+      categoriesWithProducts,
+    });
   } catch (error) {
     return res.status(500).send({
       success: false,
