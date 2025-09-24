@@ -59,6 +59,10 @@ const categorySchema = new mongoose.Schema(
     canonical: {
       type: String,
     },
+    Category: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category'
+        }], // Define Category as an array of ObjectIds
 
   },
   { timestamps: true }

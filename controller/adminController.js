@@ -37,6 +37,7 @@ import compareModel from "../models/compareModel.js";
 import enquireModel from "../models/enquireModel.js";
 import planCategoryModel from "../models/planCategoryModel.js";
 import planModel from "../models/planModel.js";
+import planModelAds from "../models/planModelAds.js";
 import departmentsModel from "../models/departmentsModel.js";
 import buyPlanModel from "../models/buyPlanModel.js";
 import mongoose from 'mongoose';
@@ -4543,7 +4544,7 @@ export const getAllPlanCategoryAdmin = async (req, res) => {
 };
 
 
-// Add Plan
+// Add  Plan
 
 export const AddPlanController = async (req, res) => {
   try {
@@ -4686,6 +4687,166 @@ export const getPlanIdAdmin = async (req, res) => {
 };
 
 export const deletePlanAdmin = async (req, res) => {
+  try {
+    await planModel.findByIdAndDelete(req.params.id);
+
+    return res.status(200).send({
+      success: true,
+      message: "Plan Deleted!",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      success: false,
+      message: "Erorr while deleteing",
+      error,
+    });
+  }
+};
+
+// Add Ads Plan
+
+export const AddPlanAdsController = async (req, res) => {
+  try {
+    const { name, price, Category } = req.body;
+
+    // Validation
+
+
+
+    if (!name) {
+      return res.status(400).send({
+        success: false,
+        message: "Please Provide name Field",
+      });
+    }
+
+    // Create a new category with the specified parent
+    const plan = new planModelAds({
+      name, price
+    });
+    await plan.save();
+
+    return res.status(201).send({
+      success: true,
+      message: "Plan created!",
+      plan,
+    });
+  } catch (error) {
+    console.error("Error while creating plan:", error);
+    return res.status(400).send({
+      success: false,
+      message: "Error while creating plan",
+      error,
+    });
+  }
+};
+
+export const getAllPlanAdsAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1; // Current page, default is 1
+    const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
+    const searchTerm = req.query.search || ""; // Get search term from the query parameters
+
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (searchTerm) {
+      const regex = new RegExp(searchTerm, "i"); // Case-insensitive regex pattern for the search term
+
+      // Add regex pattern to search both username and email fields for the full name
+      query.$or = [
+        { name: regex },
+        { price: regex },
+      ];
+    }
+
+    const totalCount = await planModelAds.countDocuments(query); // Count total documents matching the query
+
+    const plan = await planModelAds
+      .find(query)
+      .sort({ _id: -1 }) // Sort by _id in descending order
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Convert documents to plain JavaScript objects
+
+    if (!plan || plan.length === 0) { // Check if no users found
+      return res.status(404).send({ // Send 404 Not Found response
+        message: "No Plan",
+        success: false,
+      });
+    }
+
+    return res.status(200).send({ // Send successful response
+      message: "All Plan ",
+      Count: plan.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit),
+      success: true,
+      plan, // Return users array
+    });
+  } catch (error) {
+    return res.status(500).send({ // Send 500 Internal Server Error response
+      message: `Error while plan: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const updatePlanAdsAdmin = async (req, res) => {
+  const { name, price, Category, validity } = req.body;
+  console.log('Category', Category);
+
+  try {
+    const { id } = req.params;
+    let updateFields = {
+      name, price, validity
+    };
+
+    const plan = await planModelAds.findByIdAndUpdate(id, updateFields, {
+      new: true,
+    });
+
+    return res.status(200).json({
+      message: "Plan Updated!",
+      success: true,
+      plan,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while updating plan: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const getPlanAdsIdAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const plan = await planModelAds.findById(id);
+    if (!plan) {
+      return res.status(200).send({
+        message: "plan Not Found By Id",
+        success: false,
+      });
+    }
+    return res.status(200).json({
+      message: "fetch Single plan!",
+      success: true,
+      plan,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while get plan: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const deletePlanAdsAdmin = async (req, res) => {
   try {
     await planModel.findByIdAndDelete(req.params.id);
 

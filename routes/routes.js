@@ -5,7 +5,11 @@ import {
   AddAdminPromoController, getAllPromoAdmin, updatePromoAdmin, getPromoIdAdmin, deletePromoAdmin
   , getAllEnquireAdmin, ChangePassAdmin, ForgotAdminPassword, editOrderAdmin, editLeadStatusAdmin,deleteOrderAdmin, AddAdminPageController, getAllPageAdmin, updatePageAdmin, getPageIdAdmin, deletePageAdmin, getAllBlogAdmin, exportAllProAdmin, importAllProAdmin,editOrderEmployeeAdmin, AdminGetAllEmployee, getMYUserAdmin,getAllUserAdmin, AddAdminTaxController, getAllTaxAdmin, updateTaxAdmin, getTaxIdAdmin, deleteTaxAdmin, ViewAllAdminZones, AddAdminZonesController, getAllZonesAdmin, updateZonesAdmin, getZonesIdAdmin, deleteZonesAdmin, GetImageAdmin, deleteFolderAdmin, UpdateFolderAdmin, getUserIdAdmin, GetFolderIDAdmin, AddAdminFolderController, GetFolderAdmin, editUserAdmin, AddAdminAttributeController, deleteRatingAdmin, editReviewAdmin, getAllOrderAdmin, getAllAttributeFillAdmin, updateAttributeAdmin, getAttributeIdAdmin, deleteAttributeAdmin, getAllAttribute, AddAdminTagController, getAllTagFillAdmin, updateTagAdmin, getTagIdAdmin, deleteTagAdmin, getAllTag, editHomeData, editHomeLayoutData,
   AddPlanCategoryController, getAllPlanCategoryAdmin, AddPlanController, getAllPlanAdmin, getPlanIdAdmin, updatePlanAdmin, deletePlanAdmin, AddAdminDepartmentController,
-  getAllDepartmentFillAdmin,
+  getAllDepartmentFillAdmin,AddPlanAdsController,
+getAllPlanAdsAdmin,
+updatePlanAdsAdmin,
+getPlanAdsIdAdmin,
+deletePlanAdsAdmin,
   getDepartmentIdAdmin,
   updateDepartmentAdmin,
   deleteDepartmentAdmin, editUserVerifyAdmin, AllPaymentAdmin, AdminAllEnquireStatus, profileImageHealth,EmployeeAcceptOrderControllerAdmin
@@ -142,6 +146,15 @@ router.get('/admin/all-plan', getAllPlanAdmin);
 router.get('/admin/get-plan/:id', getPlanIdAdmin);
 router.put('/admin/update-plan/:id', updatePlanAdmin);
 router.delete('/admin/delete-plan/:id', deletePlanAdmin);
+
+// for Plan ads
+
+router.post('/admin/add-plan-ads', AddPlanAdsController);
+router.get('/admin/all-plan-ads', getAllPlanAdsAdmin);
+router.get('/admin/get-plan-ads/:id', getPlanAdsIdAdmin);
+router.put('/admin/update-plan-ads/:id', updatePlanAdsAdmin);
+router.delete('/admin/delete-plan-ads/:id', deletePlanAdsAdmin);
+
 
 // for Zones
 
