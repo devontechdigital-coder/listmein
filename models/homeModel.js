@@ -62,6 +62,14 @@ const homeSchema = new mongoose.Schema(
           type: String,
             default: ""
         },
+        hrPrice: {
+          type: Number,
+            default: 0
+        },
+        dayPrice: {
+          type: Number,
+            default: 0
+        },
     },
     { timestamps: true }
 );

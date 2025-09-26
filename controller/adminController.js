@@ -1713,7 +1713,7 @@ export const editHomeData = async (req, res) => {
       email,
       address,
       cash,
-      razorpay,keyId,keySecret
+      razorpay,keyId,keySecret,dayPrice,hrPrice
     } = req.body;
 
     console.log(meta_favicon)
@@ -1731,7 +1731,7 @@ export const editHomeData = async (req, res) => {
       email,
       address,
       cash,
-      razorpay,keyId,keySecret
+      razorpay,keyId,keySecret,dayPrice,hrPrice
     };
 
     const homeData = await homeModel.findOneAndUpdate({}, updateFields, {

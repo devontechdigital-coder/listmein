@@ -42,6 +42,7 @@ import util from "util";
 import crypto from "crypto";  // Ensure you require the crypto module if you haven't
 import razorpay from "razorpay";
 import HomeCategoryModel from "../models/HomeCategoryModel.js";
+import buyPlanAdsModel from "../models/buyPlanAdsModel.js";
 
 const execPromise = util.promisify(exec);
 
@@ -8965,6 +8966,173 @@ export const SenderEnquireStatus = async (req, res) => {
 const waitForTimeout = (milliseconds) => {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 };
+
+export const adsImage = upload.fields([
+  { name: "adsinput", maxCount: 1 },
+]);
+
+export const BuyAdsPlanByUser = async (req, res) => {
+  try {
+
+    const {
+      adslink,
+      type,
+      Quantity,
+      Category,
+      state,
+      coverage,
+      userId,
+      totalAmount
+
+    } = req.body;
+
+       const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        console.log('homeData',homeData)
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+         const instance = new razorpay({
+            key_id: keyId,
+            key_secret: keySecret,
+        });
+ 
+              const options = {
+            amount: Number(totalAmount * 100), // Razorpay expects the amount in paise
+            currency: "INR",
+        };
+        const order = await instance.orders.create(options);
+
+    // const transactionId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // const paymentData = PayuHash(totalAmount, UserData.username, UserData.email, UserData.phone, transactionId);
+
+    // Determine 'Local' based on the state
+    let Local = 0;
+    if (state) {
+      const StateId = await zonesModel.findById(state);
+      if (StateId && StateId.primary === 'true') {
+        Local = 1;
+      }
+    }
+
+    // Calculate the auto-increment ID for paymentId
+    const lastLead = await buyPlanAdsModel.findOne().sort({ _id: -1 }).limit(1);
+    let paymentId = 1;
+    if (lastLead) {
+      paymentId = parseInt(lastLead.paymentId || 1) + 1;
+    }
+
+    const updatedata = { 
+      adslink,
+      type,
+      Quantity,
+      Category,
+      state,
+      coverage, 
+      userId,
+      totalAmount,
+      paymentId,
+      note: 'Payment successfully added',
+      payment: 0, // Placeholder for actual payment value
+      Local,
+      razorpay_order_id: order.id
+    }
+
+     const adsinput = req.files ? req.files.adsinput : undefined;
+ 
+	  if (adsinput && adsinput[0]) {
+      updateFields.img = adsinput[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
+
+    const newBuyPlan = new buyPlanAdsModel(updatedata);
+
+    await newBuyPlan.save();
+
+    res.status(200).json({
+      success: true,
+      buyAds: newBuyPlan, // Include the newly created buy plan in the response
+      message: "Ads buy sucessfully.",
+     });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).send({
+      message: `Error occurred during Ads buying: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+export const AdsPaymentVerification = async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  
+        const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+
+  const expectedsgnature = crypto
+    .createHmac("sha256", keySecret)
+    .update(body.toString())
+    .digest("hex");
+
+  const isauth = expectedsgnature === razorpay_signature;
+  if (isauth) {
+    // await Payment.create({
+    //   razorpay_order_id,
+    //   razorpay_payment_id,
+    //   razorpay_signature,
+    // });
+
+      await buyPlanAdsModel.findOneAndUpdate(
+      { razorpay_order_id: razorpay_order_id },
+      {
+        razorpay_payment_id,
+        razorpay_signature,
+        payment: 1,
+      },
+      { new: true } // This option returns the updated document
+    );
+    console.log(
+      "razorpay_order_id, razorpay_payment_id, razorpay_signature",
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+ 
+
+    res.redirect(
+      `${process.env.BACKWEB}all-plan-ads`
+    );
+  } else {
+    await orderModel.findOneAndUpdate(
+      { razorpay_order_id },
+      {
+        payment: 2,
+      },
+      { new: true } // This option returns the updated document
+    );
+ res.redirect(
+      `${process.env.BACKWEB}all-plan-ads`
+    );
+    // res.status(400).json({ success: false });
+  }
+};
+
 
 // Function to minify HTML content manually
 const minifyHTML = (html) => {

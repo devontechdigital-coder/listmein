@@ -34,12 +34,7 @@ const buyplanadsSchema = new mongoose.Schema(
             ref: "User",
             required: true,
           },
-          planId: {
-            // Changed field name to plural and set type as an array of ObjectIds
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "planads",
-            required: true,
-          },
+           
           payment: {
             type: Number,
             default: 0,
@@ -48,10 +43,26 @@ const buyplanadsSchema = new mongoose.Schema(
           Local: {
             type: Number,
           },
-                  coverage: {
+         coverage: {
             type: Object,
         },
-        
+        adslink: {
+            type: String,
+          },
+      type: {
+            type: Number,
+          },
+                Category: [{
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'Category'
+                }], // Define Category as an array of ObjectIds
+         Quantity: {
+            type: Number,
+          },
+         state: {
+            type: String,
+          },
+          
     },
     { timestamps: true }
 );
