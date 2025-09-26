@@ -2695,7 +2695,7 @@ export const GetAllCategoriesByParentIdController = async (req, res) => {
 
 
 
-export const GetAllCategoriesBySlugController = async (req, res) => {
+export const GetAllCategoriesBySlugController_old = async (req, res) => {
   try {
     const { parentSlug } = req.params;
     const { filter, price, page = 1, perPage = 2,location } = req.query;
@@ -2822,6 +2822,207 @@ export const GetAllCategoriesBySlugController = async (req, res) => {
     });
   }
 };
+
+ 
+export const GetAllCategoriesBySlugController = async (req, res) => {
+  try {
+    const { parentSlug } = req.params;
+    const { filter, price, page = 1, perPage = 2, location } = req.query;
+
+    if (!parentSlug) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid parent ID.",
+      });
+    }
+
+    const MainCat = await categoryModel
+      .findOne({ slug: parentSlug, status: "true" })
+      .select(
+        "title metaTitle metaDescription metaKeywords image description specifications slide_head slide_para filter slug canonical"
+      )
+      .lean();
+
+    if (!MainCat) {
+      return res.status(404).json({
+        success: false,
+        message: "Category not found or inactive.",
+      });
+    }
+
+    const parentId = MainCat._id;
+    const categories = await getAllCategoriesByParentId(parentId);
+
+    const filters = { Category: parentId, status: "true" };
+
+    // ----- variation filters -----
+    if (filter) {
+      let filterParams;
+      try {
+        filterParams = JSON.parse(filter);
+      } catch (err) {
+        console.error("Invalid filter JSON:", err);
+        return res.status(400).json({ success: false, message: "Invalid filter format." });
+      }
+
+      const variationFilters = Object.entries(filterParams).map(([variationName, valueString]) => {
+        const values = valueString.split(",").map(v => v.trim()).filter(Boolean);
+        return {
+          $elemMatch: {
+            name: variationName,
+            value: { $in: values },
+          }
+        };
+      });
+
+      if (variationFilters.length > 0) {
+        filters.variations = { $all: variationFilters };
+      }
+    }
+
+    // ----- price filters -----
+    if (price && price.trim() !== "") {
+      const priceRanges = price.split(",");
+      const priceFilters = priceRanges.map((range) => {
+        const [minPrice, maxPrice] = range.split("-");
+        return {
+          salePrice: { $gte: parseInt(minPrice), $lte: parseInt(maxPrice) },
+          status: "true",
+        };
+      });
+
+      filters.$or = priceFilters;
+    }
+
+    // ----- location → restrict by product's seller coverage -----
+    if (location) {
+      const trimmedLocation = location.trim();
+      const matchingUsers = await userModel.find({
+        coverage: { $elemMatch: { $regex: new RegExp(`^${trimmedLocation}$`, "i") } }
+      }).select("_id");
+
+      const matchingUserIds = matchingUsers.map(user => user._id);
+      if (matchingUserIds.length > 0) {
+        filters.userId = { $in: matchingUserIds };
+      }
+    }
+
+    const skip = (Number(page) - 1) * Number(perPage);
+
+    // ----- products -----
+    const products = await productModel
+      .find(filters)
+      .select("_id title regularPrice salePrice pImage variations slug features userId")
+      .populate("userId", "username phone email coverage address")
+      .skip(skip)
+      .limit(Number(perPage));
+
+    const Procat = { Category: parentId, status: "true" };
+    const productsFilter = await productModel
+      .find(Procat)
+      .select("_id regularPrice salePrice variations slug")
+      .lean();
+
+    const proLength = await productModel.countDocuments(filters);
+
+    // =====================================================================
+    // NEW: Random active ad image for this category tree (+ optional location)
+    // =====================================================================
+    // Build category id list = parent + descendants
+    const catIds = [parentId, ...((categories || []).map(c => c._id))];
+
+    // Base ads match: paid + category match
+    const adsMatch = {
+      payment: 1,
+      Category: { $in: catIds },
+    };
+
+    // Optional coverage/location match (schema shows Object, data shows array; handle both)
+    if (location && location.trim()) {
+      const loc = location.trim();
+      adsMatch.$or = [
+        { coverage: { $elemMatch: { $regex: new RegExp(`^${loc}$`, "i") } } }, // array case
+        { coverage: { $regex: new RegExp(`^${loc}$`, "i") } },                 // string case
+      ];
+    }
+
+    let adsImage = null;
+    let adsImageLink = null;
+
+    try {
+      const now = new Date();
+
+      // sample ONE active ad
+      const sampled = await buyPlanAdsModel.aggregate([
+        { $match: adsMatch },
+        {
+          $addFields: {
+            endAt: {
+              $cond: [
+                { $eq: ["$type", 0] }, // 0 = hourly
+                { $dateAdd: { startDate: "$createdAt", unit: "hour", amount: { $ifNull: ["$Quantity", 0] } } },
+                { $dateAdd: { startDate: "$createdAt", unit: "day",  amount: { $ifNull: ["$Quantity", 0] } } },
+              ]
+            }
+          }
+        },
+        { $match: { endAt: { $gt: now } } },  // still active
+        { $sample: { size: 1 } },
+        { $project: { _id: 0, img: 1, adslink: 1 } }
+      ]);
+
+      if (sampled && sampled.length) {
+        adsImage = sampled[0].img || null;
+        adsImageLink = sampled[0].adslink || null;
+      } else {
+        // Fallback: sample any active ad for these categories (ignore coverage)
+        const fallback = await buyPlanAdsModel.aggregate([
+          { $match: { payment: 1, Category: { $in: catIds } } },
+          {
+            $addFields: {
+              endAt: {
+                $cond: [
+                  { $eq: ["$type", 0] },
+                  { $dateAdd: { startDate: "$createdAt", unit: "hour", amount: { $ifNull: ["$Quantity", 0] } } },
+                  { $dateAdd: { startDate: "$createdAt", unit: "day",  amount: { $ifNull: ["$Quantity", 0] } } },
+                ]
+              }
+            }
+          },
+          { $match: { endAt: { $gt: now } } },
+          { $sample: { size: 1 } },
+          { $project: { _id: 0, img: 1, adslink: 1 } }
+        ]);
+
+        if (fallback && fallback.length) {
+          adsImage = fallback[0].img || null;
+          adsImageLink = fallback[0].adslink || null;
+        }
+      }
+    } catch (e) {
+      console.error("Error sampling ads image:", e);
+    }
+
+    // ----- response -----
+    return res.status(200).json({
+      success: true,
+      categories,
+      MainCat,
+      products,
+      proLength,
+      productsFilter,
+      adsImage,      // e.g. "uploads/new/adsinput-1758880710665.png"
+      adsImageLink,  // optional: link to open when clicking the ad
+    });
+  } catch (error) {
+    console.error("Error in GetAllCategoriesBySlugController:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
 
 export const getAllCategoriesByParentId = async (parentId) => {
   try {
@@ -9047,7 +9248,7 @@ export const BuyAdsPlanByUser = async (req, res) => {
      const adsinput = req.files ? req.files.adsinput : undefined;
  
 	  if (adsinput && adsinput[0]) {
-      updateFields.img = adsinput[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+      updatedata.img = adsinput[0].path.replace(/\\/g, "/").replace(/^public\//, "");
     }
 
     const newBuyPlan = new buyPlanAdsModel(updatedata);
@@ -9063,6 +9264,61 @@ export const BuyAdsPlanByUser = async (req, res) => {
     console.log(error);
     return res.status(500).send({
       message: `Error occurred during Ads buying: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
+export const getAllAdsFillAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1; // Current page, default is 1
+    const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
+    const searchTerm = req.query.search || ""; // Get search term from the query parameters
+    const userId = req.query.userId || null; // Get search term from the query parameters
+
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (searchTerm) {
+      // If search term is provided, add it to the query
+      query.$or = [
+        { adslink: { $regex: searchTerm, $options: "i" } }, // Case-insensitive username search
+       ];
+    }
+ 
+    query.payment = 1;
+    if(userId){
+    query.userId = userId;
+    }
+
+    const totalCategory = await buyPlanAdsModel.countDocuments();
+
+    const Ads = await buyPlanAdsModel
+      .find(query)
+      .sort({ _id: -1 }) // Sort by _id in descending order
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (!Ads) {
+      return res.status(200).send({
+        message: "NO ads found",
+        success: false,
+      });
+    }
+    return res.status(200).send({
+      message: "All ads list ",
+      CategoryCount: Ads.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalCategory / limit),
+      success: true,
+      Ads,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: `Error while getting Ads ${error}`,
       success: false,
       error,
     });
