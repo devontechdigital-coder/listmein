@@ -43,6 +43,8 @@ import buyPlanModel from "../models/buyPlanModel.js";
 import mongoose from 'mongoose';
 import geolib from 'geolib';
 import HomeCategoryModel from "../models/HomeCategoryModel.js";
+import transactionModel from "../models/transactionModel.js";
+import withdrawalModel from "../models/withdrawalModel.js";
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -1713,7 +1715,13 @@ export const editHomeData = async (req, res) => {
       email,
       address,
       cash,
-      razorpay,keyId,keySecret,dayPrice,hrPrice
+      razorpay,keyId,keySecret,dayPrice,hrPrice,saleCommission,
+userIncome,
+bussinessPartnerIncome,
+companyPartnerIncome,
+wearehousePartnerIncome,
+fundPartnerIncome,
+
     } = req.body;
 
     console.log(meta_favicon)
@@ -1731,7 +1739,13 @@ export const editHomeData = async (req, res) => {
       email,
       address,
       cash,
-      razorpay,keyId,keySecret,dayPrice,hrPrice
+      razorpay,keyId,keySecret,dayPrice,hrPrice,saleCommission,
+userIncome,
+bussinessPartnerIncome,
+companyPartnerIncome,
+wearehousePartnerIncome,
+fundPartnerIncome,
+
     };
 
     const homeData = await homeModel.findOneAndUpdate({}, updateFields, {
@@ -2538,6 +2552,77 @@ export const editOrderEmployeeAdmin = async (req, res) => {
 };
 
 
+const createTransaction = async ({ userId, amount, orderId }) => {
+  try {
+     
+    const lastTrans = await transactionModel.findOne().sort({ _id: -1 }).limit(1);
+
+    let lastTransId;
+    if (lastTrans) {
+      const lastOrderId = parseInt(lastTrans.t_no || 0);
+      lastTransId = lastOrderId + 1;
+    } else {
+      lastTransId = 1;
+    }
+
+    const t_id = "tt00" + lastTransId;
+
+    const transaction = new transactionModel({
+      userId: userId,
+      type: 99, // You can change this to reflect "Commission Earned" if needed
+      note: `Commission earned from Order ID #${orderId}`,
+      amount: amount, // Positive amount: earning
+      t_id,
+      t_no: lastTransId,
+    });
+
+    await transaction.save();
+    console.log(`✅ Transaction created for user ${userId}: ₹${amount}`);
+  } catch (error) {
+    console.error(`❌ Error creating transaction for user ${userId}:`, error);
+  }
+};
+
+export const editStatusWithdrawalAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status,comment } = req.body;
+
+    console.log(status);
+    
+    const withdrawal = await withdrawalModel.findById(id).populate('userId'); // Fetch order details including user
+
+    if (!withdrawal) {
+      return res.status(400).json({
+        message: "withdrawal not found",
+        success: false,
+      });
+    }
+
+  
+    let updateFields = {
+      status,
+      note: comment
+    }; 
+ 
+   await withdrawalModel.findByIdAndUpdate(id, updateFields, {
+      new: true,
+    });
+
+    return res.status(200).json({
+      message: "withdrawal Updated!",
+      success: true,
+    });
+
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while updating withdrawal: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
 
 export const editOrderAdmin = async (req, res) => {
   try {
@@ -2561,6 +2646,79 @@ export const editOrderAdmin = async (req, res) => {
     let updateFields = {
       status,
     };
+
+    if(status==='5'){
+      const home = await homeModel.find();
+      const saleCommission = home[0].saleCommission ?? 0;
+      const userIncome = home[0].userIncome ?? 0;
+      const bussinessPartnerIncome = home[0].bussinessPartnerIncome ?? 0;
+      const companyPartnerIncome = home[0].companyPartnerIncome ?? 0;
+      const wearehousePartnerIncome = home[0].wearehousePartnerIncome ?? 0;
+      const fundPartnerIncome = home[0].fundPartnerIncome ?? 0;
+ 
+
+const totalSaleCommission = (order.totalAmount * saleCommission) / 100;
+
+const UserSaleCommission = (totalSaleCommission * userIncome) / 100;
+const BussinessPartnerCommission = (totalSaleCommission * bussinessPartnerIncome) / 100;
+const companyPartnerCommission = (totalSaleCommission * companyPartnerIncome) / 100;
+const wearehousePartnerCommission = (totalSaleCommission * wearehousePartnerIncome) / 100;
+const fundPartnerCommission = (totalSaleCommission * fundPartnerIncome) / 100;
+
+
+    const AllUsers = await userModel.find({ type: 2 });
+    const AllBussinessPartner = await userModel.find({ type: 4,empType : 0 });
+    const AllWarehousePartner = await userModel.find({ type: 5,empType : 0 });
+    const AllCompanyPartner = await userModel.find({ type: 6,empType : 0 });
+    const AllFundPartner = await userModel.find({ type: 7,empType : 0 });
+
+
+        // Step 5: Calculate per-user commissions
+    const perUserCommission = AllUsers.length ? (UserSaleCommission / AllUsers.length) : 0;
+    const perBusinessPartnerCommission = AllBussinessPartner.length ? (BussinessPartnerCommission / AllBussinessPartner.length) : 0;
+    const perCompanyPartnerCommission = AllCompanyPartner.length ? (companyPartnerCommission / AllCompanyPartner.length) : 0;
+    const perWarehousePartnerCommission = AllWarehousePartner.length ? (wearehousePartnerCommission / AllWarehousePartner.length) : 0;
+    const perFundPartnerCommission = AllFundPartner.length ? (fundPartnerCommission / AllFundPartner.length) : 0;
+
+
+      const updateWallet = async (user, amount) => {
+      user.wallet = (user.wallet || 0) + amount;
+      
+      await user.save();
+
+       await createTransaction({
+    userId: user._id,
+    amount: amount,
+    orderId: order.orderId,
+  });
+    };
+
+
+   for (const user of AllUsers) {
+      await updateWallet(user, perUserCommission);
+    }
+
+    for (const partner of AllBussinessPartner) {
+      await updateWallet(partner, perBusinessPartnerCommission);
+    }
+
+    for (const partner of AllCompanyPartner) {
+      await updateWallet(partner, perCompanyPartnerCommission);
+    }
+
+    for (const partner of AllWarehousePartner) {
+      await updateWallet(partner, perWarehousePartnerCommission);
+    }
+
+     for (const partner of AllFundPartner) {
+      await updateWallet(partner, perFundPartnerCommission);
+    }
+
+    
+console.log('Total Sale Commission:', totalSaleCommission);
+console.log('UserSaleCommission', UserSaleCommission);
+
+     }
 
     const updatedOrder = await orderModel.findByIdAndUpdate(id, updateFields, {
       new: true,
@@ -5288,3 +5446,518 @@ export const AdminAllEnquireStatus = async (req, res) => {
 export const profileImageHealth = upload.fields([
   { name: "profile", maxCount: 1 },
 ]);
+
+
+
+// for withdrwal
+
+export const getAllWithdrawalAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1; // Current page, default is 1
+    const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
+    const searchTerm = req.query.search || ""; // Get search term from the query parameters
+
+    const userId = req.query.userId || null; // Get search term from the query parameters
+
+    const skip = (page - 1) * limit;
+
+    const query = {  }; // userId is now always required
+     if(userId){
+      query.userId = userId;
+    }
+    if (searchTerm) {
+      // If search term is provided, add it to the query
+      query.$or = [
+        { userId: { $regex: searchTerm, $options: "i" } }, // Case-insensitive username search
+        { productId: { $regex: searchTerm, $options: "i" } }, // Case-insensitive email search
+      ];
+    }
+    
+
+    const totalmyData = await withdrawalModel.countDocuments(query); // Count documents matching the query
+
+    const myData = await withdrawalModel
+      .find(query)
+      .sort({ _id: -1 }) // Sort by _id in descending order
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "userId",
+        model: userModel,
+        select: "username",
+      }).lean();
+
+    if (!myData || myData.length === 0) {
+      return res.status(200).send({
+        message: "No myData found",
+        success: false,
+      });
+    }
+    return res.status(200).send({
+      message: "All myData list",
+      dataCount: myData.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalmyData / limit),
+      success: true,
+      myData,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: `Error while getting ratings: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
+
+export const AllPaymentWalletAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1; // Current page, default is 1
+    const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
+    const searchTerm = req.query.search || ""; // Get search term from the query parameters
+    const userId = req.query.userId ; // Get search term from the query parameters
+
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (searchTerm) {
+      // If search term is provided, add it to the query
+      query.$or = [
+        { name: { $regex: searchTerm, $options: "i" } }, // Case-insensitive username search
+        { value: { $regex: searchTerm, $options: "i" } }, // Case-insensitive email search
+      ];
+    }
+
+       const fillter = {};  // Only fetch employees with the type (assuming "employee")
+
+ 
+    if(userId){
+      query.userId = userId;
+    }
+  
+    const totalDepartment = await paymentModel.countDocuments();
+ 
+    const Transaction = await paymentModel
+      .find(query)
+      .sort({ _id: -1 }) // Sort by _id in descending order
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (!Transaction) {
+      return res.status(200).send({
+        message: "NO Transaction found",
+        success: false,
+      });
+    }
+    return res.status(200).send({
+      message: "All Transaction list ",
+      TransactionCount: Transaction.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalDepartment / limit),
+      success: true,
+      Transaction,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: `Error while getting Transaction ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+ 
+export const AllTransactionWalletAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1; // Current page, default is 1
+    const limit = parseInt(req.query.limit) || 10; // Number of documents per page, default is 10
+    const searchTerm = req.query.search || ""; // Get search term from the query parameters
+    const userId = req.query.userId ; // Get search term from the query parameters
+
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (searchTerm) {
+      // If search term is provided, add it to the query
+      query.$or = [
+        { name: { $regex: searchTerm, $options: "i" } }, // Case-insensitive username search
+        { value: { $regex: searchTerm, $options: "i" } }, // Case-insensitive email search
+      ];
+    }
+
+       const fillter = {};  // Only fetch employees with the type (assuming "employee")
+
+ 
+    if(userId){
+      query.userId = userId;
+    }
+ 
+    const totalDepartment = await transactionModel.countDocuments();
+ 
+    const Transaction = await transactionModel
+      .find(query)
+      .sort({ _id: -1 }) // Sort by _id in descending order
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (!Transaction) {
+      return res.status(200).send({
+        message: "NO Transaction found",
+        success: false,
+      });
+    }
+    return res.status(200).send({
+      message: "All Transaction list ",
+      TransactionCount: Transaction.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalDepartment / limit),
+      success: true,
+      Transaction,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: `Error while getting Transaction ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
+
+
+export const AllTransactionAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const userId = req.query.userId;
+    const search = req.query.search?.trim() || '';
+
+    const skip = (page - 1) * limit;
+
+    const match = {};
+
+    if (userId) {
+      match.userId = userId;
+    }
+
+    // Aggregation pipeline
+    const pipeline = [
+      { $match: match },
+
+      // Join with user collection
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'userId',
+        },
+      },
+      { $unwind: '$userId' }, // Flatten userId array
+
+      // Search filtering
+      ...(search
+        ? [
+            {
+              $match: {
+                $or: [
+                  { 'userId.username': { $regex: search, $options: 'i' } },
+                  { 'userId.phone': { $regex: search, $options: 'i' } },
+                  { 'userId.email': { $regex: search, $options: 'i' } },
+                  { t_id: { $regex: search, $options: 'i' } },
+                ],
+              },
+            },
+          ]
+        : []),
+
+      // Sort & paginate
+      { $sort: { _id: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+
+      // Return all fields including populated userId
+      {
+        $project: {
+          _id: 1,
+          note: 1,
+          amount: 1,
+          type: 1,
+          t_id: 1,
+          t_no: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          userId: {
+            _id: 1,
+            username: 1,
+            phone: 1,
+            email: 1,
+          },
+        },
+      },
+    ];
+
+    // Count pipeline
+    const countPipeline = [
+      { $match: match },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'userId',
+        },
+      },
+      { $unwind: '$userId' },
+      ...(search
+        ? [
+            {
+              $match: {
+                $or: [
+                  { 'userId.username': { $regex: search, $options: 'i' } },
+                  { 'userId.phone': { $regex: search, $options: 'i' } },
+                  { 'userId.email': { $regex: search, $options: 'i' } },
+                  { t_id: { $regex: search, $options: 'i' } },
+                ],
+              },
+            },
+          ]
+        : []),
+      { $count: 'total' },
+    ];
+
+    const [transactions, countResult] = await Promise.all([
+      transactionModel.aggregate(pipeline),
+      transactionModel.aggregate(countPipeline),
+    ]);
+
+    const totalTransaction = countResult.length > 0 ? countResult[0].total : 0;
+
+    return res.status(200).json({
+      message: 'All Transaction list',
+      TransactionCount: transactions.length,
+      currentPage: page,
+      totalPages: Math.ceil(totalTransaction / limit),
+      success: true,
+      transactions,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: `Error while getting transactions: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
+
+
+export const withdrawalUserAdmin = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await userModel.findById(userId);
+    if (!user) {
+      return res.status(404).send({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const homeData = await homeModel.findOne();
+    if (!homeData) {
+      return res.status(500).send({
+        success: false,
+        message: "Home settings not found",
+      });
+    }
+
+    const withdrawalAmt = user.wallet;
+
+    if(withdrawalAmt === 0){
+  return res.status(400).send({
+        success: false,
+        message: `Sorry, your wallet balance is 0`,
+      });
+    }
+    if ((user.wallet || 0) < withdrawalAmt) {
+      return res.status(400).send({
+        success: false,
+        message: `Sorry, your wallet balance is less than the minimum withdrawal amount of ${withdrawalAmt}`,
+      });
+    }
+
+    // Deduct withdrawal amount
+    user.wallet = (user.wallet || 0) - withdrawalAmt;
+
+    // Get last transaction number
+    const lastTrans = await transactionModel
+      .findOne()
+      .sort({ _id: -1 })
+      .limit(1);
+
+    const lastTransId = lastTrans ? parseInt(lastTrans.t_no || 0) + 1 : 1;
+    const t_id = "tt00" + lastTransId;
+
+    // Create a new transaction
+    const transaction = new transactionModel({
+      userId,
+      type: 1,
+      note: `Withdrawal amount -${withdrawalAmt}`,
+      amount: -withdrawalAmt,
+      t_id,
+      t_no: lastTransId,
+    });
+
+        const withdrawal = new withdrawalModel({
+      userId,
+      status: 0,
+      amount: withdrawalAmt,
+      t_id,
+      t_no: lastTransId,
+    });
+
+    await transaction.save();
+    await withdrawal.save();
+    await user.save();
+
+    // Send successful response
+    return res.status(200).send({
+      success: true,
+      message: `Withdrawal of ${withdrawalAmt} successful.`,
+      transaction,
+      walletBalance: user.wallet,
+    });
+
+  } catch (error) {
+    return res.status(500).send({
+      success: false,
+      message: `Error processing withdrawal: ${error.message}`,
+      error,
+    });
+  }
+};
+
+// for 
+
+export const getAllTransactionsAnalytics = async (req, res) => {
+  try {
+    // Step 1: Fetch all transactions of type 99 (or any other conditions)
+    const transactionsType99 = await transactionModel.find({ type: 99 });
+
+    // Step 2: Fetch all users with type 2 (general users)
+    const allUsers = await userModel.find({ type: 2 });
+
+    // Step 3: Fetch all partners with type 4, 6, 5, 7 (business, company, warehouse, fund)
+    const allPartners = await userModel.find({
+      $or: [
+        { type: 4, empType: 0 },  // Business partners
+        { type: 6, empType: 0 },  // Company partners
+        { type: 5, empType: 0 },  // Warehouse partners
+        { type: 7, empType: 0 },  // Fund partners
+      ]
+    });
+
+    // Step 4: Calculate total income for each user (sum of amount in transactions)
+    const calculateIncome = (userId) => {
+      return transactionsType99
+        .filter(transaction => transaction.userId.toString() === userId.toString()) // Filter transactions for that user
+        .reduce((total, transaction) => total + transaction.amount, 0); // Sum the amounts
+    };
+
+    // Step 5: Aggregate total income for all users and partners
+    const allUsersIncome = allUsers.map(user => ({
+      userId: user._id,
+      username: user.username,
+      income: calculateIncome(user._id)
+    }));
+
+    const allBussinessPartnerIncome = allPartners
+      .filter(user => user.type === 4)
+      .map(user => ({
+        userId: user._id,
+        username: user.username,
+        income: calculateIncome(user._id)
+      }));
+
+    const allCompanyPartnerIncome = allPartners
+      .filter(user => user.type === 6)
+      .map(user => ({
+        userId: user._id,
+        username: user.username,
+        income: calculateIncome(user._id)
+      }));
+
+    const allWarehousePartnerIncome = allPartners
+      .filter(user => user.type === 5)
+      .map(user => ({
+        userId: user._id,
+        username: user.username,
+        income: calculateIncome(user._id)
+      }));
+
+    const allFundPartnerIncome = allPartners
+      .filter(user => user.type === 7)
+      .map(user => ({
+        userId: user._id,
+        username: user.username,
+        income: calculateIncome(user._id)
+      }));
+
+    // Step 6: Aggregate income for each category
+    const totalIncomeByCategory = {
+      allUsers: allUsersIncome.reduce((sum, user) => sum + user.income, 0),
+      allBussinessPartner: allBussinessPartnerIncome.reduce((sum, user) => sum + user.income, 0),
+      allCompanyPartner: allCompanyPartnerIncome.reduce((sum, user) => sum + user.income, 0),
+      allWarehousePartner: allWarehousePartnerIncome.reduce((sum, user) => sum + user.income, 0),
+      allFundPartner: allFundPartnerIncome.reduce((sum, user) => sum + user.income, 0),
+    };
+
+    // Step 7: Prepare the data for chart visualization
+    const chartData = {
+      labels: ['Users', 'Business Partners', 'Company Partners', 'Warehouse Partners', 'Fund Partners'],
+      datasets: [
+        {
+          label: 'Income Earned',
+          data: [
+            totalIncomeByCategory.allUsers,
+            totalIncomeByCategory.allBussinessPartner,
+            totalIncomeByCategory.allCompanyPartner,
+            totalIncomeByCategory.allWarehousePartner,
+            totalIncomeByCategory.allFundPartner,
+          ],
+          backgroundColor: ['#ff6384', '#36a2eb', '#cc65fe', '#ffce56', '#ff4500'],
+        }
+      ]
+    };
+
+    // Step 8: Respond with the data and chart data
+    res.status(200).json({
+      success: true,
+      message: 'Getting All Analytics Successful.',
+      data: {
+        transactionsType99,
+        allUsersIncome,
+        allBussinessPartnerIncome,
+        allCompanyPartnerIncome,
+        allWarehousePartnerIncome,
+        allFundPartnerIncome,
+        totalIncomeByCategory, // Total income for each category
+        chartData,  // Data for the chart
+      },
+    });
+  } catch (error) {
+    // Catch any error and send a response with error details
+    res.status(500).send({
+      success: false,
+      message: `Error processing request: ${error.message}`,
+      error,
+    });
+  }
+};

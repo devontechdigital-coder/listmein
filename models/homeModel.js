@@ -70,6 +70,31 @@ const homeSchema = new mongoose.Schema(
           type: Number,
             default: 0
         },
+          saleCommission: {
+          type: Number,
+            default: 0
+        },
+          userIncome: {
+          type: Number,
+            default: 0
+        },
+          bussinessPartnerIncome: {
+          type: Number,
+            default: 0
+        },
+          companyPartnerIncome: {
+          type: Number,
+            default: 0
+        },
+          wearehousePartnerIncome: {
+          type: Number,
+            default: 0
+        },
+         fundPartnerIncome: {
+          type: Number,
+          default: 0
+        },
+        
     },
     { timestamps: true }
 );

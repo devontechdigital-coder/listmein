@@ -21,8 +21,12 @@ const userSchema = mongoose.Schema({
   type: {
     type: Number,
   },
-    empType: {
+  empType: {
     type: Number,
+    default: 0
+  }, 
+   dynamicType: {
+    type: String,
   },
   token: {
     type: String,
@@ -49,6 +53,10 @@ const userSchema = mongoose.Schema({
   status: {
     type: String,
     default: 1
+  },
+  wallet: {
+    type: Number,
+    default: 0
   },
   verified: {
     type: Number,

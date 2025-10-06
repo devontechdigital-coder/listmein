@@ -10,8 +10,8 @@ getAllPlanAdsAdmin,
 updatePlanAdsAdmin,
 getPlanAdsIdAdmin,
 deletePlanAdsAdmin,
-  getDepartmentIdAdmin,
-  updateDepartmentAdmin,
+  getDepartmentIdAdmin,getAllTransactionsAnalytics,editStatusWithdrawalAdmin,
+  updateDepartmentAdmin,getAllWithdrawalAdmin,AllPaymentWalletAdmin, AllTransactionWalletAdmin,AllTransactionAdmin,withdrawalUserAdmin,
   deleteDepartmentAdmin, editUserVerifyAdmin, AllPaymentAdmin, AdminAllEnquireStatus, profileImageHealth,EmployeeAcceptOrderControllerAdmin
 } from "../controller/adminController.js";
 
@@ -184,6 +184,17 @@ router.delete('/admin/delete-promo/:id', deletePromoAdmin);
 
 // for order delete
 router.delete('/admin/delete-order/:id', deleteOrderAdmin);
+
+// for wallet 
+
+router.get("/admin/all-payment", AllPaymentAdmin);
+router.get("/admin/withdrawal/:userId", withdrawalUserAdmin);
+router.get("/admin/all-transaction", AllTransactionAdmin);
+router.get("/all-transaction", AllTransactionWalletAdmin);
+router.get("/all-payments", AllPaymentWalletAdmin);
+
+router.get("/admin/all-Withdrawal", getAllWithdrawalAdmin);
+
 
 
 // for page 
@@ -463,6 +474,12 @@ router.get('/deepsearch', getProductDeepSearch );
 
 router.get('/deepsearch-seller', getSellerDeepSearch );
 
+router.get('/get-all-analytics', getAllTransactionsAnalytics );
+
+// Withdrawal update
+
+router.put('/admin/update-Withdrawal/:id', editStatusWithdrawalAdmin);
+ 
 
 export default router;
 

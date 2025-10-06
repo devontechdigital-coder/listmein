@@ -5772,6 +5772,7 @@ export const AuthUserByID = async (req, res) => {
           establishment: existingUser.establishment,
           mId: existingUser.mId,
           dynamicUsers: existingUser.dynamicUsers,
+          wallet: existingUser.wallet,
         },
       });
 
