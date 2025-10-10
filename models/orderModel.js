@@ -56,10 +56,10 @@ const orderSchema = mongoose.Schema({
   totalAmount: {
     type: Number,
   },
-  userId: [{  // Changed field name to plural and set type as an array of ObjectIds
+  userId:{  // Changed field name to plural and set type as an array of ObjectIds
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-  }],
+  },
   primary: {
     type: String,
   }, 

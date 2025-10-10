@@ -1067,7 +1067,7 @@ export const AddAdminProduct = async (req, res) => {
       Category,
       tag,
       features,
-      specifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage
+      specifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage,saleType, minQty
     } = req.body;
 
     // Validation
@@ -1134,7 +1134,7 @@ export const AddAdminProduct = async (req, res) => {
       Category,
       tag,
       features,
-      specifications: updatespecifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage
+      specifications: updatespecifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage,saleType, minQty
     });
 
 
@@ -1231,7 +1231,7 @@ export const updateProductAdmin = async (req, res) => {
       metaKeywords,
       Category,
       tag, features,
-      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage
+      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage,saleType, minQty
     } = req.body;
 
     console.log('typp', type);
@@ -1252,7 +1252,7 @@ export const updateProductAdmin = async (req, res) => {
       metaKeywords,
       Category,
       tag, features,
-      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage
+      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage,saleType, minQty
     };
 
     const Product = await productModel.findByIdAndUpdate(id, updateFields, {
@@ -2069,7 +2069,7 @@ const type = req.query.type ? req.query.type.split(',') : [];
     { runnId:  { $in: employeeId } },
     { sellId:  { $in: employeeId } },
     { wareId:  { $in: employeeId } },
-  ];
+   ];
 }
 
   
@@ -2647,7 +2647,7 @@ export const editOrderAdmin = async (req, res) => {
       status,
     };
 
-    if(status==='5'){
+    if(status==='7'){
       const home = await homeModel.find();
       const saleCommission = home[0].saleCommission ?? 0;
       const userIncome = home[0].userIncome ?? 0;
@@ -5299,7 +5299,10 @@ export const updateVendorProfileUser = async (req, res) => {
       city,
       confirm_password,
       about,
-      department
+      department,
+      location,
+      longitude,
+      latitude
     } = req.body;
 
     const Doc1 = req.files ? req.files.Doc1 : undefined;
@@ -5321,6 +5324,8 @@ export const updateVendorProfileUser = async (req, res) => {
       city,
       about,
       department,
+      location,
+      longitude,
     };
 
     if (password.length > 0 && confirm_password.length > 0) {
@@ -5338,7 +5343,17 @@ export const updateVendorProfileUser = async (req, res) => {
     if (profileImg && profileImg[0]) {
       updateFields.profile = profileImg[0].path; // Assumes profile[0] is the uploaded file
     }
-
+    if(location){
+      updateFields.location = location;
+    }
+      if(longitude){
+      updateFields.longitude = longitude;
+      }
+        if(latitude){
+      updateFields.latitude = latitude;
+        }
+     
+  
     const user = await userModel.findByIdAndUpdate(id, updateFields, {
       new: true,
     });

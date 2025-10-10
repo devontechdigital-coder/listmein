@@ -100,6 +100,14 @@ const productSchema = new mongoose.Schema(
         coverage: {
             type: Object,
         },
+         saleType: {
+            type:  Number,
+             default: 1,
+        },
+         minQty: {
+            type:  Number,
+            default: 1,
+        },
         
         userId: {
                  type: mongoose.Schema.Types.ObjectId,

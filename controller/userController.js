@@ -1266,7 +1266,7 @@ export const updateUserAndCreateOrderController = async (req, res) => {
     status,
     totalAmount,
     userId,
-    verified,longitude,latitude
+    verified,longitude,latitude,sellId
   } = req.body;
 
   try {
@@ -1424,7 +1424,8 @@ const bussId = buss[0] ? buss[0]._id : null;
     razorpay_order_id: order.id,
       payment:0,longitude,latitude,
       wareId,
-      bussId
+      bussId,
+      sellId
     });
 
 await newOrder.save();
@@ -3126,7 +3127,7 @@ export const FullOrdersViewController = async (req, res) => {
     const { orderId } = req.params;
 
     // Find the user by ID and populate their orders
-    const userOrder = await orderModel.findById(orderId).populate('agentId').exec();
+    const userOrder = await orderModel.findById(orderId).populate('agentId').populate('sellId').exec();
  
     console.log(userOrder,orderId)
     // If user or order not found, return appropriate response
@@ -5773,6 +5774,9 @@ export const AuthUserByID = async (req, res) => {
           mId: existingUser.mId,
           dynamicUsers: existingUser.dynamicUsers,
           wallet: existingUser.wallet,
+             location :  existingUser.location,
+             longitude : existingUser.longitude,
+            latitude :  existingUser.latitude,
         },
       });
 
@@ -7959,7 +7963,10 @@ export const updateVendorProfileUser = async (req, res) => {
       city,
       confirm_password,
       about,
-      department, coverage, gallery,images,whatsapp,call,establishment,dynamicUsers
+      department, coverage, gallery,images,whatsapp,call,establishment,dynamicUsers,
+         location,
+      longitude,
+      latitude
     } = req.body;
     console.log("Uploaded files:", req.files);
 
@@ -8007,6 +8014,16 @@ export const updateVendorProfileUser = async (req, res) => {
     if (profileImg && profileImg[0]) {
       updateFields.profile = profileImg[0].path.replace(/\\/g, "/").replace(/^public\//, "");
     }
+
+        if(location){
+      updateFields.location = location;
+    }
+      if(longitude){
+      updateFields.longitude = longitude;
+      }
+        if(latitude){
+      updateFields.latitude = latitude;
+        }
 
     const user = await userModel.findByIdAndUpdate(id, updateFields, {
       new: true,
