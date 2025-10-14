@@ -45,6 +45,7 @@ import geolib from 'geolib';
 import HomeCategoryModel from "../models/HomeCategoryModel.js";
 import transactionModel from "../models/transactionModel.js";
 import withdrawalModel from "../models/withdrawalModel.js";
+import callModel from "../models/callModel.js";
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -5976,3 +5977,134 @@ export const getAllTransactionsAnalytics = async (req, res) => {
     });
   }
 };
+
+
+
+export const AddVideoCall = async (req, res) => {
+  try {
+    const {  userId, senderId ,orderId} = req.body;
+
+    console.log(userId, senderId, orderId);
+  
+    // Create a new Message document
+    const message = new callModel({
+      receiver: userId,
+      sender: senderId,
+    });
+
+    // Save the message to the database
+    await message.save();
+
+    return res.status(200).send({
+      success: true,
+      message: "Message Send successfully",
+      video : message,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: `error Message Send ${error}`,
+      sucesss: false,
+      error,
+    });
+  }
+};
+
+export const getVideoCall = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const video = await callModel.findById(id)
+      .populate([
+        { path: 'sender', select: 'username email phone' },
+        { path: 'receiver', select: 'username email phone' },
+      ]);
+
+    if (!video) {
+      return res.status(404).json({
+        message: "Video call not found by ID",
+        success: false,
+      });
+    }
+
+    
+    if (video.active === 0) {
+      return res.status(200).json({
+        message: "Video call ended!",
+        success: false,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Fetched single video call!",
+      success: true,
+      video,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: `Error while fetching video call: ${error.message}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+ 
+export const endVideoCall = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    // Find the video call using orderId, or adapt this to your schema
+    const videoCall = await callModel.findOne({_id: orderId });
+
+    if (!videoCall) {
+      return res.status(404).send({
+        success: false,
+        message: "Video call not found",
+      });
+    }
+    
+    // Update the video call status
+    videoCall.status = "completed";
+    videoCall.end = new Date();
+    videoCall.active = 0;
+    
+    await videoCall.save();
+ 
+    return res.status(200).send({
+      success: true,
+      message: "Video call ended successfully",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      success: false,
+      message: `Error ending video call: ${error.message}`,
+      error,
+    });
+  }
+};
+
+export const getAllVideoCalls = async (req, res) => {
+  const { userId } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is required' });
+  }
+ 
+  try {
+    const calls = await callModel.find({
+      $or: [
+        { sender: userId },
+        { receiver: userId }
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .populate('sender', 'username email')      // adjust fields as needed
+      .populate('receiver', 'username email')    // adjust fields as needed
+ 
+    res.status(200).json({ success: true, Order: calls });
+
+  } catch (error) {
+    console.error('Error fetching call history:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+

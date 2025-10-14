@@ -10,7 +10,7 @@ getAllPlanAdsAdmin,
 updatePlanAdsAdmin,
 getPlanAdsIdAdmin,
 deletePlanAdsAdmin,
-  getDepartmentIdAdmin,getAllTransactionsAnalytics,editStatusWithdrawalAdmin,
+  getDepartmentIdAdmin,getAllTransactionsAnalytics,editStatusWithdrawalAdmin,AddVideoCall,getVideoCall,endVideoCall,getAllVideoCalls,
   updateDepartmentAdmin,getAllWithdrawalAdmin,AllPaymentWalletAdmin, AllTransactionWalletAdmin,AllTransactionAdmin,withdrawalUserAdmin,
   deleteDepartmentAdmin, editUserVerifyAdmin, AllPaymentAdmin, AdminAllEnquireStatus, profileImageHealth,EmployeeAcceptOrderControllerAdmin
 } from "../controller/adminController.js";
@@ -254,7 +254,7 @@ router.post('/login', checkOrigin, Userlogin);
 router.post("/user-login-all", UserloginAll);
 
 //router.post('/create-order', createOrderController);
-router.post('/create-order/:id', checkOrigin, updateUserAndCreateOrderController);
+router.post('/create-order/:id', checkOrigin, updateUserAndCreateOrderController); 
 router.post('/razorpayCallback', razorpayCallback);
 
 router.post("/order-payment-verification", OrderPaymentVerification);
@@ -265,6 +265,10 @@ router.put('/cancel-order/:id', cancelOrderUser);
 router.get('/user-orders/:id', checkOrigin, userOrdersController);
 router.get('/user-orders-view/:userId/:orderId', checkOrigin, userOrdersViewController);
 router.get('/user-orders-view/:orderId', checkOrigin, FullOrdersViewController);
+router.post('/admin/add-video-call/', AddVideoCall);
+router.get("/get-video-call/:id", getVideoCall);
+router.post('/admin/end-video-call/', endVideoCall);
+router.get('/admin/all-video-call', getAllVideoCalls);
 
 
 router.post('/payment-request', PaymentRequest);

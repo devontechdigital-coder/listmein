@@ -43,6 +43,7 @@ import crypto from "crypto";  // Ensure you require the crypto module if you hav
 import razorpay from "razorpay";
 import HomeCategoryModel from "../models/HomeCategoryModel.js";
 import buyPlanAdsModel from "../models/buyPlanAdsModel.js";
+import callModel from "../models/callModel.js";
 
 const execPromise = util.promisify(exec);
 
@@ -5736,6 +5737,19 @@ export const AuthUserByID = async (req, res) => {
     const { id } = req.body;
 
     const existingUser = await userModel.findById(id);
+ 
+    
+  const calls = await callModel.find({
+    $or: [
+      { sender: id },
+      { receiver: id }
+    ],
+    start: { $ne: null },  // Not null start time
+    end: null,          // Still ongoing (no end time)
+    active: 1,  // Not null start time
+  }).populate('sender', 'username phone email')      // adjust fields as needed
+      .populate('receiver', 'username phone email')    // adjust fields as needed
+  
 
     if (existingUser) {
 
@@ -5777,6 +5791,7 @@ export const AuthUserByID = async (req, res) => {
              location :  existingUser.location,
              longitude : existingUser.longitude,
             latitude :  existingUser.latitude,
+              calls,
         },
       });
 

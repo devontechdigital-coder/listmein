@@ -53,19 +53,43 @@ const io = new Server(server, {
   },
 }); // Create a new instance of Socket.io Server and pass the HTTP server to it
 
-// Socket.io events
+  // Socket.io Events (for chat and video signaling)
 io.on("connection", (socket) => {
-  console.log("A user connected", socket.id);
+  console.log("User connected:", socket.id);
 
-  // Example: Handle chat message event
+  // Join room
+  socket.on("join", (roomID) => {
+    socket.join(roomID);
+    console.log(`User ${socket.id} joined room: ${roomID}`);
+
+    const room = io.sockets.adapter.rooms.get(roomID);
+    if (room.size > 1) {
+      socket.to(roomID).emit("ready");
+    }
+  });
+
+  // WebRTC signaling events
+  socket.on("offer", (data) => {
+    socket.to(data.roomID).emit("offer", data.offer);
+  });
+
+  socket.on("answer", (data) => {
+    socket.to(data.roomID).emit("answer", data.answer);
+  });
+
+  socket.on("ice-candidate", (data) => {
+    socket.to(data.roomID).emit("ice-candidate", data.candidate);
+  });
+
+  // Basic Chat Message
   socket.on("chat message", (msg) => {
-    console.log("message: " + msg);
-    // Broadcast the message to all connected clients
+    console.log("Message:", msg);
     io.emit("chat message", msg);
   });
 
+  // Disconnect
   socket.on("disconnect", () => {
-    console.log("A user disconnected");
+    console.log("User disconnected:", socket.id);
   });
 });
 
