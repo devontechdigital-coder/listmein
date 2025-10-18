@@ -9423,6 +9423,70 @@ export const AdsPaymentVerification = async (req, res) => {
 };
 
 
+export const AdsUserPaymentVerification = async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  
+        const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+
+  const expectedsgnature = crypto
+    .createHmac("sha256", keySecret)
+    .update(body.toString())
+    .digest("hex");
+
+  const isauth = expectedsgnature === razorpay_signature;
+  if (isauth) {
+    // await Payment.create({
+    //   razorpay_order_id,
+    //   razorpay_payment_id,
+    //   razorpay_signature,
+    // });
+
+      await buyPlanAdsModel.findOneAndUpdate(
+      { razorpay_order_id: razorpay_order_id },
+      {
+        razorpay_payment_id,
+        razorpay_signature,
+        payment: 1,
+      },
+      { new: true } // This option returns the updated document
+    );
+    console.log(
+      "razorpay_order_id, razorpay_payment_id, razorpay_signature",
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+ 
+
+    res.redirect(
+      `${process.env.LIVEWEB}account/all-ads`
+    );
+  } else {
+    await orderModel.findOneAndUpdate(
+      { razorpay_order_id },
+      {
+        payment: 2,
+      },
+      { new: true } // This option returns the updated document
+    );
+ res.redirect(
+      `${process.env.LIVEWEB}account/all-ads`
+    );
+    // res.status(400).json({ success: false });
+  }
+};
+
 // Function to minify HTML content manually
 const minifyHTML = (html) => {
   return html
