@@ -4007,7 +4007,7 @@ export const SignupLoginUser_old = async (req, res) => {
           token: existingUser.token,
           otp: ecryptOTP,
           type: 2,
-
+          newOtp: otp,
         });
       }
     } else {
@@ -4021,6 +4021,7 @@ export const SignupLoginUser_old = async (req, res) => {
         message: "New User found",
         newUser: true,
         otp: ecryptOTP,
+        newOtp: otp,
       });
     }
 
@@ -4095,7 +4096,7 @@ export const SignupLoginUser = async (req, res) => {
           token: existingUser.token,
           otp: ecryptOTP,
           type: 2,
-
+  newOtp: otp,
         });
       }
     } else {
@@ -4109,6 +4110,7 @@ export const SignupLoginUser = async (req, res) => {
         message: "New User found",
         newUser: true,
         otp: ecryptOTP,
+          newOtp: otp,
       });
 
 
@@ -4321,7 +4323,7 @@ export const LoginUserWithOTP = async (req, res) => {
         token: existingUser.token,
         otp: ecryptOTP,
         type: 2,
-
+        newOtp: otp,
       });
     }
   } catch (error) {
