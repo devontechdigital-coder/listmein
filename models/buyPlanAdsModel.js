@@ -49,6 +49,9 @@ const buyplanadsSchema = new mongoose.Schema(
         adslink: {
             type: String,
           },
+             thumbnail: {
+            type: String,
+          },
       type: {
             type: Number,
           },

@@ -2950,6 +2950,7 @@ export const GetAllCategoriesBySlugController = async (req, res) => {
 
     let adsImage = null;
     let adsImageLink = null;
+    let thumbnail = null;
 
     try {
       const now = new Date();
@@ -2970,12 +2971,13 @@ export const GetAllCategoriesBySlugController = async (req, res) => {
         },
         { $match: { endAt: { $gt: now } } },  // still active
         { $sample: { size: 1 } },
-        { $project: { _id: 0, img: 1, adslink: 1 } }
+        { $project: { _id: 0, img: 1, adslink: 1,thumbnail:1 } }
       ]);
 
       if (sampled && sampled.length) {
         adsImage = sampled[0].img || null;
         adsImageLink = sampled[0].adslink || null;
+        thumbnail = sampled[0].thumbnail || null;
       } else {
         // Fallback: sample any active ad for these categories (ignore coverage)
         const fallback = await buyPlanAdsModel.aggregate([
@@ -2999,6 +3001,7 @@ export const GetAllCategoriesBySlugController = async (req, res) => {
         if (fallback && fallback.length) {
           adsImage = fallback[0].img || null;
           adsImageLink = fallback[0].adslink || null;
+          thumbnail = fallback[0].thumbnail || null;
         }
       }
     } catch (e) {
@@ -3015,6 +3018,8 @@ export const GetAllCategoriesBySlugController = async (req, res) => {
       productsFilter,
       adsImage,      // e.g. "uploads/new/adsinput-1758880710665.png"
       adsImageLink,  // optional: link to open when clicking the ad
+       thumbnail ,
+
     });
   } catch (error) {
     console.error("Error in GetAllCategoriesBySlugController:", error);
@@ -9205,6 +9210,7 @@ const waitForTimeout = (milliseconds) => {
 
 export const adsImage = upload.fields([
   { name: "adsinput", maxCount: 1 },
+    { name: "thumbnail", maxCount: 1 },
 ]);
 
 export const BuyAdsPlanByUser = async (req, res) => {
@@ -9218,10 +9224,70 @@ export const BuyAdsPlanByUser = async (req, res) => {
       state,
       coverage,
       userId,
-      totalAmount
+      totalAmount,
 
     } = req.body;
 
+    if(totalAmount === "0"){
+  
+
+    // const transactionId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // const paymentData = PayuHash(totalAmount, UserData.username, UserData.email, UserData.phone, transactionId);
+
+    // Determine 'Local' based on the state
+    let Local = 0;
+    if (state) {
+      const StateId = await zonesModel.findById(state);
+      if (StateId && StateId.primary === 'true') {
+        Local = 1;
+      }
+    }
+
+    // Calculate the auto-increment ID for paymentId
+    const lastLead = await buyPlanAdsModel.findOne().sort({ _id: -1 }).limit(1);
+    let paymentId = 1;
+    if (lastLead) {
+      paymentId = parseInt(lastLead.paymentId || 1) + 1;
+    }
+
+    const updatedata = { 
+      adslink,
+      type,
+      Quantity,
+      Category,
+      state,
+      coverage, 
+      userId,
+      totalAmount,
+      paymentId,
+      note: 'Payment successfully added',
+      payment: totalAmount === '0' ? 1 : 0, // Placeholder for actual payment value
+      Local,
+      }
+
+     const adsinput = req.files ? req.files.adsinput : undefined;
+      const thumbnail = req.files ? req.files.thumbnail : undefined;
+
+	  if (adsinput && adsinput[0]) {
+      updatedata.img = adsinput[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
+    
+    if (thumbnail && thumbnail[0]) {
+      updatedata.thumbnail = thumbnail[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
+
+    
+     
+    const newBuyPlan = new buyPlanAdsModel(updatedata);
+
+    await newBuyPlan.save();
+        res.status(200).json({
+      success: true,
+      buyAds: newBuyPlan, // Include the newly created buy plan in the response
+      message: "Ads buy sucessfully.",
+     });
+    }else{
        const homeData = await homeModel.findOne({});
         if (!homeData) {
             return res.status(500).send({ message: 'Home data not found in the database', success: false });
@@ -9275,26 +9341,37 @@ export const BuyAdsPlanByUser = async (req, res) => {
       totalAmount,
       paymentId,
       note: 'Payment successfully added',
-      payment: 0, // Placeholder for actual payment value
+      payment: totalAmount === 0 ? 1 : 0, // Placeholder for actual payment value
       Local,
-      razorpay_order_id: order.id
-    }
+      razorpay_order_id: order.id,
+     }
 
      const adsinput = req.files ? req.files.adsinput : undefined;
- 
+      const thumbnail = req.files ? req.files.thumbnail : undefined;
+
 	  if (adsinput && adsinput[0]) {
       updatedata.img = adsinput[0].path.replace(/\\/g, "/").replace(/^public\//, "");
     }
+    
+    if (thumbnail && thumbnail[0]) {
+      updatedata.thumbnail = thumbnail[0].path.replace(/\\/g, "/").replace(/^public\//, "");
+    }
 
+    
+     
     const newBuyPlan = new buyPlanAdsModel(updatedata);
 
     await newBuyPlan.save();
 
-    res.status(200).json({
+        res.status(200).json({
       success: true,
       buyAds: newBuyPlan, // Include the newly created buy plan in the response
       message: "Ads buy sucessfully.",
      });
+    }
+      
+
+
   } catch (error) {
     console.log(error);
     return res.status(500).send({
