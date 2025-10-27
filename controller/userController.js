@@ -1963,19 +1963,44 @@ export const HomeSendEnquire = async (req, res) => {
     senderId,type } = req.body;
 
   try {
-    // Save data to the database
-    const newEnquire = new enquireModel({
+
+
+
+      const usersType3 = await userModel.find({ type: 3 });
+
+    if (!usersType3.length) {
+      console.log("No users with type 3 found.");
+    }
+
+    // 2️⃣ Create a list of enquiries — one for each user type 3
+    const enquiries = usersType3.map((user) => ({
       fullname,
       email,
       phone,
       service,
-      QTY:QTY ?? 1,
-      userId,
+      QTY: QTY ?? 1,
+      userId: user._id,   // send to each user of type 3
       senderId,
-      type
-    });
+      type,
+    }));
 
-    await newEnquire.save();
+    // 3️⃣ Insert all enquiries in one go
+    await enquireModel.insertMany(enquiries);
+
+
+    // // Save data to the database
+    // const newEnquire = new enquireModel({
+    //   fullname,
+    //   email,
+    //   phone,
+    //   service,
+    //   QTY:QTY ?? 1,
+    //   userId,
+    //   senderId,
+    //   type
+    // });
+
+    // await newEnquire.save();
 
 
 
