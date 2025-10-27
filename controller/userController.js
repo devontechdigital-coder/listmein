@@ -6374,7 +6374,7 @@ export const ViewAllZonesCategory = async (req, res) => {
   }
 };
 
-export const getVendorById = async (req, res) => {
+export const getVendorById_old = async (req, res) => {
   try {
     const { slug } = req.params;
     const Mpage = await userModel.findOne({ _id: slug, type: 3 });
@@ -6397,6 +6397,72 @@ export const getVendorById = async (req, res) => {
     });
   }
 };
+
+export const getVendorById = async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    // 1) Fetch vendor (type 3)
+    const Mpage = await userModel.findOne({ _id: slug, type: 3 }).lean();
+    if (!Mpage) {
+      return res.status(200).send({
+        message: "user not found",
+        success: false,
+      });
+    }
+
+    // 2) Single latest active, paid, VIDEO ad by this vendor (adslink unrestricted)
+    const now = new Date();
+
+    const latestAdArr = await buyPlanAdsModel.aggregate([
+      { $match: { payment: 1, userId: Mpage._id } },
+      {
+        $addFields: {
+          endAt: {
+            $cond: [
+              { $eq: ["$type", 0] }, // 0 = hourly
+              { $dateAdd: { startDate: "$createdAt", unit: "hour", amount: { $ifNull: ["$Quantity", 0] } } },
+              { $dateAdd: { startDate: "$createdAt", unit: "day",  amount: { $ifNull: ["$Quantity", 0] } } },
+            ],
+          },
+        },
+      },
+      { $match: { endAt: { $gt: now } } },                 // still active
+      { $match: { img: { $regex: /\.(mp4|webm|ogg)$/i } } }, // video-only by file extension
+      {
+        $project: {
+          _id: 1,
+          img: 1,
+          thumbnail: 1,
+          adslink: 1,     // no restriction; can be anything
+          createdAt: 1,
+          endAt: 1,
+          type: 1,
+          Quantity: 1,
+          Category: 1,
+        },
+      },
+      { $sort: { createdAt: -1 } },  // latest first
+      { $limit: 1 },
+    ]);
+
+    const latestAd = latestAdArr[0] || null;
+
+    return res.status(200).json({
+      message: "fetch user Page!",
+      success: true,
+      Mpage,
+      latestAd, // single latest active paid video ad, or null
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error while get Page: ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
 
 export const getAllPdlanUser = async (req, res) => {
   const { id } = req.params;
@@ -8344,7 +8410,7 @@ const categories = await categoryModel.find({ type: 1, parent: null }).exec();
   }
 };
 
-export const getCategoriesWithProducts = async (req, res) => {
+export const getCategoriesWithProducts_25_oct = async (req, res) => {
   try {
     let { location = '', catId = null } = req.query;
 
@@ -8465,7 +8531,253 @@ const isTargetCategory = !catId || String(category.slug).toLowerCase() === Strin
 };
 
  
-export const getCategoriesWithSubcategory = async (req, res) => {
+export const getCategoriesWithProducts = async (req, res) => {
+  try {
+    let { location = "", catId = null } = req.query;
+
+    const locationParts = location
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const primaryLocation = locationParts[0] || "";
+    const secondaryLocation = locationParts[1] || "";
+
+    // -------- helper: fetch a category + all descendant ids (category tree) --------
+    const getCategoryTreeIds = async (rootId) => {
+      const tree = await categoryModel.aggregate([
+        { $match: { _id: rootId } },
+        {
+          $graphLookup: {
+            from: "categories",
+            startWith: "$_id",
+            connectFromField: "_id",
+            connectToField: "parent",
+            as: "descendants",
+          },
+        },
+        { $project: { _id: 1, descendants: { _id: 1 } } },
+      ]);
+
+      if (!tree || !tree.length) return [rootId];
+      const desc = (tree[0].descendants || []).map((d) => d._id);
+      return [rootId, ...desc];
+    };
+
+    // -------- helper: sample ONE active ad for a category tree (with optional location) --------
+    const sampleActiveAdForTree = async (catIds, loc) => {
+      const now = new Date();
+
+      const baseMatch = {
+        payment: 1,
+        Category: { $in: catIds },
+      };
+
+      // Add optional coverage matching (handles array or string coverage in DB)
+      const adsMatch = { ...baseMatch };
+      if (loc && String(loc).trim()) {
+        const L = String(loc).trim();
+        adsMatch.$or = [
+          { coverage: { $elemMatch: { $regex: new RegExp(`^${L}$`, "i") } } }, // array
+          { coverage: { $regex: new RegExp(`^${L}$`, "i") } }, // string
+        ];
+      }
+
+      // Try location-matched sample first
+      const firstTry = await buyPlanAdsModel.aggregate([
+        { $match: adsMatch },
+        {
+          $addFields: {
+            endAt: {
+              $cond: [
+                { $eq: ["$type", 0] }, // 0 = hourly
+                {
+                  $dateAdd: {
+                    startDate: "$createdAt",
+                    unit: "hour",
+                    amount: { $ifNull: ["$Quantity", 0] },
+                  },
+                },
+                {
+                  $dateAdd: {
+                    startDate: "$createdAt",
+                    unit: "day",
+                    amount: { $ifNull: ["$Quantity", 0] },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $match: { endAt: { $gt: now } } },
+        { $sample: { size: 1 } },
+        { $project: { _id: 0, img: 1, adslink: 1, thumbnail: 1 } },
+      ]);
+
+      if (firstTry && firstTry.length) return firstTry[0];
+
+      // Fallback: any active ad in the category tree (ignore coverage)
+      const fallback = await buyPlanAdsModel.aggregate([
+        { $match: baseMatch },
+        {
+          $addFields: {
+            endAt: {
+              $cond: [
+                { $eq: ["$type", 0] },
+                {
+                  $dateAdd: {
+                    startDate: "$createdAt",
+                    unit: "hour",
+                    amount: { $ifNull: ["$Quantity", 0] },
+                  },
+                },
+                {
+                  $dateAdd: {
+                    startDate: "$createdAt",
+                    unit: "day",
+                    amount: { $ifNull: ["$Quantity", 0] },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $match: { endAt: { $gt: now } } },
+        { $sample: { size: 1 } },
+        { $project: { _id: 0, img: 1, adslink: 1, thumbnail: 1 } },
+      ]);
+
+      if (fallback && fallback.length) return fallback[0];
+
+      return null;
+    };
+
+    // ------------------- Fetch all top-level / targeted categories -------------------
+    let categories = [];
+
+    if (catId) {
+      const category = await categoryModel
+        .findOne({ slug: String(catId).toLowerCase() })
+        .exec();
+
+      if (category) {
+        categories.push(category); // target category first
+      }
+
+      let parent = category?.parent;
+      if (!category?.parent) {
+        parent = category?._id;
+      }
+
+      const otherCategories = await categoryModel.find({
+        type: 1,
+        parent: { $ne: null, $eq: parent }, // siblings under same parent
+        _id: { $ne: category?._id },
+      });
+
+      categories = [...categories, ...otherCategories];
+    } else {
+      categories = await categoryModel.find({ type: 1, parent: null }).exec();
+    }
+
+    // ------------------- For each category: products + ads (per category tree) -------------------
+    const categoriesWithProducts = await Promise.all(
+      categories.map(async (category) => {
+        const isTargetCategory =
+          !catId ||
+          String(category.slug).toLowerCase() === String(catId).toLowerCase();
+
+        // Build aggregation pipeline for products with optional location
+        const buildProductQuery = (loc) => [
+          { $match: { Category: category._id } },
+          {
+            $lookup: {
+              from: "users",
+              localField: "userId",
+              foreignField: "_id",
+              as: "userDetails",
+            },
+          },
+          { $unwind: "$userDetails" },
+          {
+            $match: {
+              ...(loc && {
+                "userDetails.coverage": {
+                  $elemMatch: { $regex: new RegExp(`^${loc}$`, "i") },
+                },
+              }),
+            },
+          },
+          { $limit: 20 },
+          {
+            $project: {
+              title: 1,
+              description: 1,
+              pImage: 1,
+              userId: 1,
+              Category: 1,
+              slug: 1,
+              features: 1,
+              salePrice: 1,
+              regularPrice: 1,
+              gst: 1,
+              stock: 1,
+            },
+          },
+        ];
+
+        // Fetch products (primary → secondary location fallback) only for target category
+        let products = [];
+        if (isTargetCategory) {
+          products = await productModel.aggregate(buildProductQuery(primaryLocation));
+          if (products.length === 0 && secondaryLocation) {
+            products = await productModel.aggregate(buildProductQuery(secondaryLocation));
+          }
+        }
+
+        // ---- NEW: ads image per category tree (category + descendants) ----
+        const catIds = await getCategoryTreeIds(category._id);
+
+        // Try with primaryLocation → then secondary → then ignore coverage
+        let sampledAd = await sampleActiveAdForTree(catIds, primaryLocation);
+        if (!sampledAd && secondaryLocation) {
+          sampledAd = await sampleActiveAdForTree(catIds, secondaryLocation);
+        }
+        if (!sampledAd) {
+          sampledAd = await sampleActiveAdForTree(catIds, ""); // no coverage filter
+        }
+
+        const adsImage = sampledAd?.img || null;
+        const adsImageLink = sampledAd?.adslink || null;
+        const thumbnail = sampledAd?.thumbnail || null;
+
+        const categoryObject = category.toObject();
+        return {
+          ...categoryObject,
+          products, // [] if not target or no matches
+          adsImage,
+          adsImageLink,
+          thumbnail,
+        };
+      })
+    );
+
+    return res.status(200).send({
+      message: "Categories and Products fetched successfully",
+      success: true,
+      categoriesWithProducts,
+    });
+  } catch (error) {
+    console.error("Error in getCategoriesWithProducts:", error);
+    return res.status(500).send({
+      success: false,
+      message: `Error: ${error.message}`,
+    });
+  }
+};
+
+
+
+export const getCategoriesWithSubcategory_25_oct_2025 = async (req, res) => {
   try {
     const { location = '' } = req.query;
 
@@ -8540,6 +8852,191 @@ export const getCategoriesWithSubcategory = async (req, res) => {
   }
 };
 
+export const getCategoriesWithSubcategory = async (req, res) => {
+  try {
+    const { location = "" } = req.query;
+
+    // Support "City, State" → try primary first, then secondary
+    const locationParts = String(location)
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const primaryLocation = locationParts[0] || "";
+    const secondaryLocation = locationParts[1] || "";
+
+    // ---------------- helper: get [root, ...descendantIds] via $graphLookup ---------------
+    const getCategoryTreeIds = async (rootId) => {
+      const tree = await categoryModel.aggregate([
+        { $match: { _id: rootId } },
+        {
+          $graphLookup: {
+            from: "categories",
+            startWith: "$_id",
+            connectFromField: "_id",
+            connectToField: "parent",
+            as: "descendants",
+          },
+        },
+        { $project: { _id: 1, descendants: { _id: 1 } } },
+      ]);
+      if (!tree?.length) return [rootId];
+      const desc = (tree[0].descendants || []).map((d) => d._id);
+      return [rootId, ...desc];
+    };
+
+    // ---------------- helper: sample ONE active ad for a category tree -------------------
+    const sampleActiveAdForTree = async (catIds, loc) => {
+      const now = new Date();
+
+      const baseMatch = { payment: 1, Category: { $in: catIds } };
+      const withCoverage = { ...baseMatch };
+
+      if (loc && String(loc).trim()) {
+        const L = String(loc).trim();
+        // handle both array and string coverage in DB
+        withCoverage.$or = [
+          { coverage: { $elemMatch: { $regex: new RegExp(`^${L}$`, "i") } } }, // array case
+          { coverage: { $regex: new RegExp(`^${L}$`, "i") } },                 // string case
+        ];
+      }
+
+      // try with coverage
+      const firstTry = await buyPlanAdsModel.aggregate([
+        { $match: withCoverage },
+        {
+          $addFields: {
+            endAt: {
+              $cond: [
+                { $eq: ["$type", 0] }, // 0 = hourly
+                { $dateAdd: { startDate: "$createdAt", unit: "hour", amount: { $ifNull: ["$Quantity", 0] } } },
+                { $dateAdd: { startDate: "$createdAt", unit: "day",  amount: { $ifNull: ["$Quantity", 0] } } },
+              ],
+            },
+          },
+        },
+        { $match: { endAt: { $gt: now } } },
+        { $sample: { size: 1 } },
+        { $project: { _id: 0, img: 1, adslink: 1, thumbnail: 1 } },
+      ]);
+
+      if (firstTry?.length) return firstTry[0];
+
+      // fallback: ignore coverage
+      const fallback = await buyPlanAdsModel.aggregate([
+        { $match: baseMatch },
+        {
+          $addFields: {
+            endAt: {
+              $cond: [
+                { $eq: ["$type", 0] },
+                { $dateAdd: { startDate: "$createdAt", unit: "hour", amount: { $ifNull: ["$Quantity", 0] } } },
+                { $dateAdd: { startDate: "$createdAt", unit: "day",  amount: { $ifNull: ["$Quantity", 0] } } },
+              ],
+            },
+          },
+        },
+        { $match: { endAt: { $gt: now } } },
+        { $sample: { size: 1 } },
+        { $project: { _id: 0, img: 1, adslink: 1, thumbnail: 1 } },
+      ]);
+
+      if (fallback?.length) return fallback[0];
+      return null;
+    };
+
+    // ---------------- Step 1: Fetch top-level categories (parent is null) ----------------
+    const parentCategories = await categoryModel.find({ parent: null });
+
+    // ---------------- Step 2: For each parent, gather valid subcategories + ads ---------
+    const categoriesWithSubcategories = await Promise.all(
+      parentCategories.map(async (parentCategory) => {
+        // subcategories of this parent
+        const subcategories = await categoryModel.find({ parent: parentCategory._id });
+
+        // which subcategories have at least one product matching location (primary → secondary)
+        const validSubcategories = await Promise.all(
+          subcategories.map(async (subCat) => {
+            const pipeline = (loc) => ([
+              { $match: { Category: subCat._id } },
+              {
+                $lookup: {
+                  from: "users",
+                  localField: "userId",
+                  foreignField: "_id",
+                  as: "userDetails",
+                },
+              },
+              { $unwind: "$userDetails" },
+              {
+                $match: {
+                  ...(loc && {
+                    "userDetails.coverage": {
+                      $elemMatch: { $regex: new RegExp(`^${loc}$`, "i") },
+                    },
+                  }),
+                },
+              },
+              { $limit: 1 },
+            ]);
+
+            let found = await productModel.aggregate(pipeline(primaryLocation));
+            if (!found.length && secondaryLocation) {
+              found = await productModel.aggregate(pipeline(secondaryLocation));
+            }
+
+            return found.length ? subCat.toObject() : null;
+          })
+        );
+
+        // keep only valid
+        const filteredSubcategories = validSubcategories.filter(Boolean);
+
+        if (!filteredSubcategories.length) {
+          return null; // no valid subs → skip this parent category
+        }
+
+        // -------- NEW: attach one ad per PARENT CATEGORY TREE (parent + descendants) -----
+        const catIds = await getCategoryTreeIds(parentCategory._id);
+
+        // try primary → secondary → ignore coverage
+        let adDoc = await sampleActiveAdForTree(catIds, primaryLocation);
+        if (!adDoc && secondaryLocation) {
+          adDoc = await sampleActiveAdForTree(catIds, secondaryLocation);
+        }
+        if (!adDoc) {
+          adDoc = await sampleActiveAdForTree(catIds, "");
+        }
+
+        const adsImage = adDoc?.img || null;
+        const adsImageLink = adDoc?.adslink || null;
+        const thumbnail = adDoc?.thumbnail || null;
+
+        return {
+          ...parentCategory.toObject(),
+          subcategories: filteredSubcategories,
+          adsImage,
+          adsImageLink,
+          thumbnail,
+        };
+      })
+    );
+
+    // remove null parents
+    const result = categoriesWithSubcategories.filter(Boolean);
+
+    return res.status(200).send({
+      success: true,
+      message: "Categories and Subcategories fetched successfully",
+      categories: result,
+    });
+  } catch (error) {
+    console.error("Error fetching categories with subcategories:", error);
+    return res.status(500).send({
+      success: false,
+      message: `Error: ${error.message}`,
+    });
+  }
+};
 
 
 export const getCategoriesWithProductsByID = async (req, res) => {
