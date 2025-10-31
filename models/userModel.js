@@ -140,7 +140,21 @@ const userSchema = mongoose.Schema({
   mId: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User', // Reference to the User model for the sender
-  }]
+  }],
+   razorpay_order_id: {
+      type: String,
+    },
+
+    razorpay_payment_id: {
+      type: String,
+    },
+
+    razorpay_signature: {
+      type: String,
+    },
+    price: {
+      type: Number,
+    },
 },
   { timestamps: true }
 );

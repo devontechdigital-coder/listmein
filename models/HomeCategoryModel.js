@@ -10,6 +10,15 @@ const homeCategorySchema = new mongoose.Schema(
     icon_image: {
       type: String,
     },
+     type: {
+      type: Number,
+    },
+
+      empType: {
+      type: Number,
+    },
+    
+
      para: {
       type: String,
     }, 
@@ -54,7 +63,14 @@ const homeCategorySchema = new mongoose.Schema(
     },
      faqs: {
             type: Array,
-    }
+    },
+    logic:{
+            type: Number,
+            default:0
+    },
+     multi: {
+            type: Array,
+    },
   },
   { timestamps: true }
 );

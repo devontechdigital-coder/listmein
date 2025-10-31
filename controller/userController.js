@@ -470,6 +470,202 @@ if (mId) {
   }
 };
 
+export const SignupUserTypePay = async (req, res) => {
+  try {
+    const {
+      type,
+      empType,
+      username,
+      phone,
+      email,
+      state,
+      statename,
+      country,
+      password,
+      pincode,
+      Gender,
+      DOB,
+      address,
+      city,
+      coverage,
+      longitude,
+      latitude,
+      mId,
+      dynamicType,
+      totalAmount
+    } = req.body;
+
+    console.log('req.body',req.body)
+     // ✅ Validate and sanitize totalAmount
+    let amount = Number(totalAmount);
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or missing totalAmount in request body",
+      });
+    }
+  
+    // const {
+    //   profile,
+
+    //   AadhaarFront,
+    //   AadhaarBack,
+    // } = req.files;
+
+      const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+         const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+         const instance = new razorpay({
+            key_id: keyId,
+            key_secret: keySecret,
+        });
+ 
+              const options = {
+            amount: Number(Number(totalAmount) * 100), // Razorpay expects the amount in paise
+            currency: "INR",
+        };
+        const order = await instance.orders.create(options);
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Calculate the auto-increment ID
+    const lastUser = await userModel.findOne().sort({ _id: -1 }).limit(1);
+    let userId;
+
+    if (lastUser) {
+      // Convert lastOrder.orderId to a number before adding 1
+      const lastUserId = parseInt(lastUser.userId || 1);
+      userId = lastUserId + 1;
+    } else {
+      userId = 1;
+    }
+
+ 
+    const newUser = new userModel({
+      type,
+      username,
+      phone,
+      email,
+      password: hashedPassword,
+      pincode,
+      gender: Gender,
+      DOB,
+      address,
+      state,
+      statename,
+      country,
+      city,
+      coverage,
+      userId,
+      empType,
+      longitude,
+      latitude,
+      status:0,
+      verified:0,
+      razorpay_order_id: order.id,
+      dynamicType : dynamicType ?? '',
+      price: totalAmount,
+    });
+
+if (mId) {
+  const superUser = await userModel.findById(mId);
+  if (superUser) {
+    superUser.mId.push(newUser._id);
+    await superUser.save();
+  }
+}
+
+
+    await newUser.save();
+    res.status(201).json({
+      success: true,
+      message: "User signed up successfully",
+      user : newUser,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).send({
+      message: `Error occurred during user signup ${error}`,
+      success: false,
+      error,
+    });
+  }
+};
+
+
+export const SignupUserPaymentVerification = async (req, res) => {
+ 
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  
+        const homeData = await homeModel.findOne({});
+        if (!homeData) {
+            return res.status(500).send({ message: 'Home data not found in the database', success: false });
+        }
+
+        const { keyId, keySecret } = homeData;
+        if (!keyId || !keySecret) {
+            return res.status(500).send({ message: 'Razorpay keys are missing in the database', success: false });
+        }
+
+
+  const expectedsgnature = crypto
+    .createHmac("sha256", keySecret)
+    .update(body.toString())
+    .digest("hex");
+
+  const isauth = expectedsgnature === razorpay_signature;
+  if (isauth) {
+    // await Payment.create({
+    //   razorpay_order_id,
+    //   razorpay_payment_id,
+    //   razorpay_signature,
+    // });
+
+      await userModel.findOneAndUpdate(
+      { razorpay_order_id: razorpay_order_id },
+      {
+        razorpay_payment_id,
+        razorpay_signature,
+        status: 1,
+      },
+      { new: true } // This option returns the updated document
+    );
+    console.log(
+      "razorpay_order_id, razorpay_payment_id, razorpay_signature",
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+ 
+
+    res.redirect(
+      `${process.env.BACKWEB}`
+    );
+  } else {
+    await userModel.findOneAndUpdate(
+      { razorpay_order_id },
+      {
+        payment: 0,
+      },
+      { new: true } // This option returns the updated document
+    );
+ res.redirect(
+      `${process.env.LIVEWEB}`
+    );
+    // res.status(400).json({ success: false });
+  }
+
+   
+};
 
 
 export const updateUserController = async (req, res) => {

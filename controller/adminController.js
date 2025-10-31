@@ -888,7 +888,7 @@ export const AddAdminHomeCategoryController = async (req, res) => {
   try {
     const {
        title, icon_image, para, slug, description, metaTitle, 
- metaDescription, metaKeywords, status,auth,link,authLink, parent
+ metaDescription, metaKeywords, status,auth,link,authLink, parent,type,empType,logic,multi
     } = req.body;
 
     // Validation
@@ -902,7 +902,7 @@ export const AddAdminHomeCategoryController = async (req, res) => {
     // Create a new category with the specified parent
     const newCategory = new HomeCategoryModel({
     title, icon_image, para, slug, description, metaTitle, 
- metaDescription, metaKeywords, status,auth,link,authLink, parent
+ metaDescription, metaKeywords, status,auth,link,authLink, parent,type,empType,logic,multi
     });
     await newCategory.save();
 
@@ -977,13 +977,15 @@ export const updateHomeCategoryAdmin = async (req, res) => {
 
     const {
      title, icon_image, para, slug, description, metaTitle, 
- metaDescription, metaKeywords, status,auth,link,authLink, parent,price,faqs,heading,mission,vision
+ metaDescription, metaKeywords, status,auth,link,authLink, parent,price,faqs,heading,mission,vision,type,empType,logic,multi
     } = req.body;
      
     let updateFields = {
         title, icon_image, para, slug, description, metaTitle, 
- metaDescription, metaKeywords, status,auth,link,authLink, parent,price,faqs,heading,mission,vision
+ metaDescription, metaKeywords, status,auth,link,authLink, parent,price,faqs,heading,mission,vision,type,empType,logic,multi
     };
+
+    
 
     const Category = await HomeCategoryModel.findByIdAndUpdate(id, updateFields, {
       new: true,
