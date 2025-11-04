@@ -4320,8 +4320,7 @@ export const SignupLoginUser = async (req, res) => {
             type: existingUser.type,
           },
           token: existingUser.token,
-          otp: ecryptOTP,
-          type: 2,
+          otp: ecryptOTP, 
   newOtp: otp,
         });
       }
@@ -4526,7 +4525,7 @@ export const LoginUserWithOTP = async (req, res) => {
       });
     }
 
-    const existingUser = await userModel.findOne({ phone, status: "1", type: 2 });
+    const existingUser = await userModel.findOne({ phone, status: "1"});
 
     if (existingUser) {
       // Hash the OTP
@@ -4575,7 +4574,7 @@ export const LoginUserWithPass = async (req, res) => {
         message: "please fill all fields",
       });
     }
-    const user = await userModel.findOne({ phone, status: "1", type: 2 });
+    const user = await userModel.findOne({ phone, status: "1" });
 
     // password check
 
