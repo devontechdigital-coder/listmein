@@ -9709,7 +9709,7 @@ export const getProductDeepSearch = async (req, res) => {
   }
 };
 
-export const getSellerDeepSearch = async (req, res) => {
+export const getSellerDeepSearch_old = async (req, res) => {
   try {
     const { keywords } = req.query;
     if (!keywords) {
@@ -9850,6 +9850,158 @@ export const getSellerDeepSearch = async (req, res) => {
       total,
       results,
       debug: { tokens, sortParam }
+    });
+  } catch (error) {
+    console.error("Error fetching seller deep search:", error);
+    return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+  }
+};
+ 
+ export const getSellerDeepSearch = async (req, res) => {
+  try {
+    const { keywords } = req.query;
+    if (!keywords) {
+      return res.status(400).json({ success: false, message: "keywords is required" });
+    }
+
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 100);
+    const skip = (page - 1) * limit;
+    const sortParam = String(req.query.sort || "relevance");
+
+    // --- Tokenize & clean ---
+    const stopwords = ["in", "the", "at", "for", "of", "and"];
+    const tokens = keywords
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 1 && !stopwords.includes(t.toLowerCase()));
+
+    if (!tokens.length) {
+      return res.status(400).json({ success: false, message: "No meaningful keywords" });
+    }
+
+    const escapeReg = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const alt = tokens.map((t) => `\\b${escapeReg(t)}\\b`).join("|");
+    const pattern = `(${alt})`;
+    const options = "i";
+
+    // --- Aggregation pipeline ---
+    const pipeline = [
+      { $match: { type: 3 } }, // Only sellers
+
+      // --- ratings join ---
+      {
+        $lookup: {
+          from: "ratings",
+          let: { uid: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$vendorId", "$$uid"] } } },
+            { $match: { status: "1" } },
+            { $project: { rating: 1 } }
+          ],
+          as: "ratings"
+        }
+      },
+      {
+        $addFields: {
+          ratingCount: { $size: "$ratings" },
+          avgRating: {
+            $cond: [
+              { $gt: [{ $size: "$ratings" }, 0] },
+              { $avg: "$ratings.rating" },
+              null
+            ]
+          }
+        }
+      },
+
+      // --- Location match first ---
+      {
+        $addFields: {
+          locationMatch: {
+            $or: [
+              { $regexMatch: { input: "$statename", regex: pattern, options } },
+              { $regexMatch: { input: "$city", regex: pattern, options } }
+            ]
+          },
+          dynamicTypeMatch: { $regexMatch: { input: "$dynamicType", regex: pattern, options } },
+          usernameMatch: { $regexMatch: { input: "$username", regex: pattern, options } }
+        }
+      },
+
+      // --- Filter: only show if location AND dynamicType match ---
+      {
+        $match: {
+          locationMatch: true,
+          dynamicTypeMatch: true
+        }
+      },
+
+      // --- Calculate score ---
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $cond: [{ $eq: ["$usernameMatch", true] }, 3, 0] },
+              { $cond: [{ $eq: ["$dynamicTypeMatch", true] }, 2, 0] },
+              { $cond: [{ $eq: ["$locationMatch", true] }, 1.5, 0] }
+            ]
+          }
+        }
+      },
+
+      // --- Sort ---
+      {
+        $sort: (() => {
+          if (sortParam === "recent") return { updatedAt: -1, createdAt: -1 };
+          if (sortParam === "rating_desc") return { avgRating: -1, ratingCount: -1 };
+          if (sortParam === "rating_asc") return { avgRating: 1, ratingCount: 1 };
+          return { score: -1, updatedAt: -1 };
+        })()
+      },
+
+      // --- Pagination & projection ---
+      {
+        $facet: {
+          results: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 1,
+                username: 1,
+                dynamicType: 1,
+                email: 1,
+                phone: 1,
+                profile: 1,
+                statename: 1,
+                city: 1,
+                gallery: 1,
+                avgRating: 1,
+                ratingCount: 1,
+                score: 1,
+                usernameMatch: 1,
+                dynamicTypeMatch: 1,
+                locationMatch: 1
+              }
+            }
+          ],
+          totalCount: [{ $count: "count" }]
+        }
+      }
+    ];
+
+    const agg = await userModel.aggregate(pipeline);
+    const results = agg?.[0]?.results || [];
+    const total = agg?.[0]?.totalCount?.[0]?.count || 0;
+
+    return res.status(200).json({
+      success: true,
+      page,
+      limit,
+      total,
+      results,
+      debug: { tokens, sortParam, pattern }
     });
   } catch (error) {
     console.error("Error fetching seller deep search:", error);
