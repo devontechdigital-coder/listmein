@@ -108,6 +108,10 @@ const productSchema = new mongoose.Schema(
             type:  Number,
             default: 1,
         },
+         delivery: {
+            type:  Number,
+            default: 0,
+        },
         
         userId: {
                  type: mongoose.Schema.Types.ObjectId,

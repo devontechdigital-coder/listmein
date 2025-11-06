@@ -1070,7 +1070,7 @@ export const AddAdminProduct = async (req, res) => {
       Category,
       tag,
       features,
-      specifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage,saleType, minQty
+      specifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage,saleType, minQty,delivery
     } = req.body;
 
     // Validation
@@ -1137,7 +1137,7 @@ export const AddAdminProduct = async (req, res) => {
       Category,
       tag,
       features,
-      specifications: updatespecifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage,saleType, minQty
+      specifications: updatespecifications, gst, weight, hsn, sku, canonical,userId,variant_products,coverage,saleType, minQty,delivery
     });
 
 
@@ -1234,7 +1234,7 @@ export const updateProductAdmin = async (req, res) => {
       metaKeywords,
       Category,
       tag, features,
-      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage,saleType, minQty
+      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage,saleType,  minQty,delivery
     } = req.body;
 
     console.log('typp', type);
@@ -1255,7 +1255,7 @@ export const updateProductAdmin = async (req, res) => {
       metaKeywords,
       Category,
       tag, features,
-      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage,saleType, minQty
+      specifications, weight, gst, hsn, sku, variant_products, type, canonical, testimonials,coverage,saleType,  minQty,delivery
     };
 
     const Product = await productModel.findByIdAndUpdate(id, updateFields, {
